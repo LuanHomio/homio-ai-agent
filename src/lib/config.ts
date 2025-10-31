@@ -15,6 +15,17 @@ export const config = {
     apiKey: process.env.DIFY_API_KEY!,
     externalKbApiKey: process.env.EXTERNAL_KB_API_KEY!,
   },
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY!,
+  },
+  ghl: {
+    clientId: process.env.GHL_CLIENT_ID!,
+    clientSecret: process.env.GHL_CLIENT_SECRET!,
+    companyId: process.env.GHL_COMPANY_ID!,
+    redirectUri: process.env.GHL_AUTH_REDIRECT_URI!,
+    apiVersion: process.env.GHL_API_VERSION || '2021-07-28',
+    appAccessToken: process.env.GHL_APP_ACCESS_TOKEN,
+  },
 } as const;
 
 // Validation function
@@ -26,6 +37,11 @@ export function validateConfig() {
     'DIFY_API_BASE',
     'DIFY_API_KEY',
     'EXTERNAL_KB_API_KEY',
+    'GEMINI_API_KEY',
+    'GHL_CLIENT_ID',
+    'GHL_CLIENT_SECRET',
+    'GHL_COMPANY_ID',
+    'GHL_AUTH_REDIRECT_URI',
   ];
 
   const missing = required.filter(key => !process.env[key]);

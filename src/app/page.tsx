@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,13 +10,46 @@ import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
 import { Navigation } from '@/components/Navigation';
 import { SourcesList } from '@/components/SourcesList';
+import { AgentsManager } from '@/components/AgentsManager';
+import { HeroSection } from '@/components/HeroSection';
+import { EmptyAgentsState } from '@/components/EmptyAgentsState';
+import { AgentCard } from '@/components/AgentCard';
+import { Footer } from '@/components/Footer';
 
 interface FAQ {
   id: string;
   question: string;
   answer: string;
+  agent_id: string;
   created_at: string;
   updated_at: string;
+}
+
+interface Location {
+  id: string;
+  name: string;
+  description?: string;
+  slug: string;
+  ghl_location_id?: string;
+  settings: Record<string, any>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Agent {
+  id: string;
+  location_id: string;
+  name: string;
+  description?: string;
+  personality?: string;
+  system_prompt?: string;
+  dify_app_id?: string;
+  settings: Record<string, any>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  location?: Location;
 }
 
 interface KBSource {
@@ -23,6 +57,7 @@ interface KBSource {
   url: string;
   scope: 'domain' | 'path' | 'single';
   depth: number;
+  agent_id: string;
   is_active: boolean;
   created_at: string;
   created_by?: string;
@@ -31,6 +66,7 @@ interface KBSource {
 interface CrawlJob {
   id: string;
   source_id: string;
+  agent_id: string;
   status: 'pending' | 'running' | 'success' | 'error';
   started_at?: string;
   finished_at?: string;
@@ -40,19 +76,27 @@ interface CrawlJob {
 }
 
 export default function KnowledgeBasePage() {
-  const [activeTab, setActiveTab] = useState('sources');
+  const searchParams = useSearchParams();
+  const locationId = searchParams.get('locationId') || 'd8voPwkhJK7k7S5xjHcA'; // Default para testes
+  
+  const [activeTab, setActiveTab] = useState('agents');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [faqs, setFaqs] = useState<FAQ[]>([]);
   const [sources, setSources] = useState<KBSource[]>([]);
   const [jobs, setJobs] = useState<CrawlJob[]>([]);
   const [loading, setLoading] = useState(false);
-  const [newFaq, setNewFaq] = useState({ question: '', answer: '' });
+  const [newFaq, setNewFaq] = useState({ question: '', answer: '', agent_id: '' });
   const [editingFaq, setEditingFaq] = useState<FAQ | null>(null);
-  const [newSource, setNewSource] = useState({ url: '', scope: 'single' as const, depth: 2 });
+  const [newSource, setNewSource] = useState({ url: '', scope: 'single' as const, depth: 2, agent_id: '' });
   const [selectedSource, setSelectedSource] = useState<string>('');
   const [crawlMode, setCrawlMode] = useState<'direct' | 'n8n'>('direct');
   const [activeJobs, setActiveJobs] = useState<CrawlJob[]>([]);
   const [showNewSourceForm, setShowNewSourceForm] = useState(false);
+  
+  // States for agent management
+  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [location, setLocation] = useState<Location | null>(null);
   const [crawlResultModal, setCrawlResultModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -110,6 +154,11 @@ export default function KnowledgeBasePage() {
       return;
     }
 
+    if (!newFaq.agent_id) {
+      showMessage('error', 'Selecione um agent para criar a FAQ');
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await fetch('/api/kb/faqs', {
@@ -127,7 +176,7 @@ export default function KnowledgeBasePage() {
 
       const createdFaq = await response.json();
       setFaqs([createdFaq, ...faqs]);
-      setNewFaq({ question: '', answer: '' });
+      setNewFaq({ question: '', answer: '', agent_id: selectedAgentId || '' });
       showMessage('success', 'FAQ criada com sucesso!');
     } catch (error) {
       console.error('Error creating FAQ:', error);
@@ -223,6 +272,11 @@ export default function KnowledgeBasePage() {
       return;
     }
 
+    if (!newSource.agent_id) {
+      showMessage('error', 'Selecione um agent para criar a fonte');
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await fetch('/api/kb/source', {
@@ -240,7 +294,7 @@ export default function KnowledgeBasePage() {
 
       const createdSource = await response.json();
       setSources([createdSource, ...sources]);
-      setNewSource({ url: '', scope: 'single', depth: 2 });
+      setNewSource({ url: '', scope: 'single', depth: 2, agent_id: selectedAgentId || '' });
       showMessage('success', 'Fonte criada com sucesso!');
     } catch (error) {
       console.error('Error creating source:', error);
@@ -282,6 +336,7 @@ export default function KnowledgeBasePage() {
       const newJob: CrawlJob = {
         id: result.jobId,
         source_id: selectedSource,
+        agent_id: selectedAgentId || '',
         status: 'pending',
         created_at: new Date().toISOString(),
         meta: { mode: crawlMode }
@@ -371,601 +426,148 @@ export default function KnowledgeBasePage() {
     }
   };
 
+  const fetchLocation = async () => {
+    try {
+      const response = await fetch(`/api/locations/${locationId}`);
+      if (!response.ok) throw new Error('Failed to fetch location');
+      const data = await response.json();
+      setLocation(data);
+    } catch (error) {
+      console.error('Error fetching location:', error);
+      showMessage('error', 'Erro ao carregar location');
+    }
+  };
+
+  const fetchAgents = async () => {
+    try {
+      const response = await fetch(`/api/agents?location_id=${locationId}`);
+      if (!response.ok) throw new Error('Failed to fetch agents');
+      const data = await response.json();
+      setAgents(data);
+      
+      // Auto-select first agent if none selected
+      if (!selectedAgentId && data.length > 0) {
+        setSelectedAgentId(data[0].id);
+        setNewFaq(prev => ({ ...prev, agent_id: data[0].id }));
+        setNewSource(prev => ({ ...prev, agent_id: data[0].id }));
+      }
+    } catch (error) {
+      console.error('Error fetching agents:', error);
+      showMessage('error', 'Erro ao carregar agents');
+    }
+  };
+
   // Load data on component mount
   useEffect(() => {
+    if (locationId) {
+      fetchLocation();
     fetchFaqs();
     fetchSources();
     fetchActiveJobs();
-  }, []);
+    fetchAgents();
+    }
+  }, [locationId]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Knowledge Base Admin
-          </h1>
-          <p className="text-lg text-gray-600">
-            Gerencie fontes, execute crawls e mantenha FAQs
-          </p>
-        </div>
-
-        <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
-
+    <div className="min-h-screen bg-background text-foreground dark">
+      {/* Header/Hero Section */}
+      <HeroSection 
+        onCreateAgent={() => setActiveTab('agents')}
+        agentsCount={agents.length}
+        locationName={location?.name || 'Carregando...'}
+        locationId={locationId}
+      />
+      
+      {/* Main Content - Agents Section */}
+      <div className="max-w-7xl mx-auto p-8">
         {message && (
           <div className={`p-4 rounded-md mb-6 ${
             message.type === 'success' 
-              ? 'bg-green-100 text-green-800 border border-green-200' 
-              : 'bg-red-100 text-red-800 border border-red-200'
+              ? 'bg-green-900/30 text-green-400 border border-green-800' 
+              : 'bg-red-900/30 text-red-400 border border-red-800'
           }`}>
             {message.text}
           </div>
         )}
 
-        {/* Tab Content */}
-        {activeTab === 'sources' && (
-          <SourcesList
-            onSourceSelect={setSelectedSource}
-            selectedSourceId={selectedSource}
-            onNewSource={() => setShowNewSourceForm(true)}
-          />
-        )}
-
-        {activeTab === 'crawler' && (
-          <div className="space-y-8">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Web Crawler</h2>
-              <p className="text-gray-600">Execute crawls e monitore o progresso</p>
+        <div className="mb-12">
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h2 className="text-3xl font-bold text-white mb-2">
+                🤖 Meus Agents
+              </h2>
+              <p className="text-gray-400">
+                Gerencie e configure seus agentes de IA
+              </p>
             </div>
-
-            {/* Sources List for Selection */}
-            <SourcesList
-              onSourceSelect={setSelectedSource}
-              selectedSourceId={selectedSource}
-              showFilters={true}
-            />
-
-            {/* Crawler Controls */}
-            {selectedSource && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    🕷️ Executar Crawl
-                  </CardTitle>
-                  <CardDescription>
-                    Configure e execute o crawl da fonte selecionada
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Modo de Crawl
-                    </label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center">
-                        <input
-                          type="radio"
-                          name="mode"
-                          value="direct"
-                          checked={crawlMode === 'direct'}
-                          onChange={(e) => setCrawlMode(e.target.value as 'direct' | 'n8n')}
-                          className="mr-2"
-                        />
-                        Direct (Firecrawl)
-                      </label>
-                      <label className="flex items-center">
-                        <input
-                          type="radio"
-                          name="mode"
-                          value="n8n"
-                          checked={crawlMode === 'n8n'}
-                          onChange={(e) => setCrawlMode(e.target.value as 'direct' | 'n8n')}
-                          className="mr-2"
-                        />
-                        n8n Webhook
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="p-3 bg-blue-50 rounded border border-blue-200">
-                    <p className="text-sm text-blue-800">
-                      <strong>Fonte selecionada:</strong> {sources.find(s => s.id === selectedSource)?.url}
-                    </p>
-                    <p className="text-sm text-blue-800">
-                      <strong>Modo:</strong> {crawlMode === 'direct' ? 'Firecrawl Direto' : 'n8n Webhook'}
-                    </p>
-                  </div>
-
-                  <Button
-                    onClick={startCrawl}
-                    disabled={loading}
-                    className="w-full"
-                  >
-                    {loading ? 'Iniciando Crawl...' : 'Executar Crawl'}
-                  </Button>
-
-                  {/* Test Buttons */}
-                  <div className="border-t pt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h4 className="font-medium text-gray-900">Testes</h4>
-                        <p className="text-sm text-gray-600">Teste a conectividade antes de executar</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Button 
-                        onClick={async () => {
-                          try {
-                            setLoading(true);
-                            const source = sources.find(s => s.id === selectedSource);
-                            
-                            if (!source) {
-                              throw new Error('Fonte não encontrada');
-                            }
-
-                            const response = await fetch('/api/test/firecrawl', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ url: source.url }),
-                            });
-
-                            const result = await response.json();
-
-                            if (result.success) {
-                              showMessage('success', `Firecrawl funcionando! Página testada: ${result.data?.title || 'Sem título'} (${result.data?.contentLength} caracteres)`);
-                            } else {
-                              showMessage('error', `Erro no Firecrawl: ${result.error}`);
-                            }
-                          } catch (error) {
-                            console.error('Error testing Firecrawl:', error);
-                            showMessage('error', error instanceof Error ? error.message : 'Erro ao testar Firecrawl');
-                          } finally {
-                            setLoading(false);
-                          }
-                        }}
-                        variant="outline"
-                        size="sm"
-                        disabled={loading}
-                      >
-                        {loading ? 'Testando...' : 'Teste Simples'}
-                      </Button>
-                      
-                      <Button 
-                        onClick={async () => {
-                          try {
-                            setLoading(true);
-                            const source = sources.find(s => s.id === selectedSource);
-                            
-                            if (!source) {
-                              throw new Error('Fonte não encontrada');
-                            }
-
-                            const response = await fetch('/api/test/fallback-simulation', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ url: source.url }),
-                            });
-
-                            const result = await response.json();
-
-                            if (result.success) {
-                              showMessage('success', `Simulação de fallback concluída! Verifique o console para detalhes.`);
-                              console.log('🔍 Resultado da simulação de fallback:', result);
-                            } else {
-                              showMessage('error', `Erro na simulação: ${result.error}`);
-                              console.log('❌ Detalhes do erro:', result);
-                            }
-                          } catch (error) {
-                            console.error('Error in fallback simulation:', error);
-                            showMessage('error', error instanceof Error ? error.message : 'Erro na simulação');
-                          } finally {
-                            setLoading(false);
-                          }
-                        }}
-                        variant="outline"
-                        size="sm"
-                        disabled={loading}
-                      >
-                        {loading ? 'Testando...' : 'Teste Fallback'}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Active Jobs Status */}
-            {activeJobs.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        ⚡ Crawls Ativos
-                      </CardTitle>
-                      <CardDescription>
-                        Acompanhe o progresso dos crawls em execução
-                      </CardDescription>
-                    </div>
-                    <Button
-                      onClick={fetchActiveJobs}
-                      variant="outline"
-                      size="sm"
-                      disabled={loading}
-                    >
-                      {loading ? 'Atualizando...' : 'Atualizar'}
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {activeJobs.map((job) => {
-                      const source = sources.find(s => s.id === job.source_id);
-                      return (
-                        <div key={job.id} className="p-4 bg-blue-50 rounded border border-blue-200">
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                              <p className="font-medium text-blue-900">
-                                {source?.url || 'Fonte desconhecida'}
-                              </p>
-                              <p className="text-sm text-blue-700">
-                                Modo: {job.meta?.mode || 'unknown'} •
-                                Status: {job.status === 'pending' ? 'Aguardando' :
-                                        job.status === 'running' ? 'Executando' : job.status}
-                              </p>
-                              {job.started_at && (
-                                <p className="text-xs text-blue-600">
-                                  Iniciado: {new Date(job.started_at).toLocaleTimeString('pt-BR')}
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex items-center">
-                              {job.status === 'pending' && (
-                                <div className="w-4 h-4 bg-yellow-400 rounded-full animate-pulse"></div>
-                              )}
-                              {job.status === 'running' && (
-                                <div className="w-4 h-4 bg-blue-500 rounded-full animate-spin"></div>
-                              )}
-                            </div>
-                          </div>
-                          {job.error && (
-                            <div className="mt-2 p-2 bg-red-100 rounded text-sm text-red-800">
-                              <strong>Erro:</strong> {job.error}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            <Button 
+              onClick={() => window.location.href = `/agents/new?locationId=${locationId}`}
+              className="px-6 py-3"
+            >
+              Criar Agent
+            </Button>
           </div>
-        )}
 
-        {activeTab === 'faqs' && (
-          <div className="space-y-8">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">FAQs</h2>
-              <p className="text-gray-600">Gerencie perguntas e respostas frequentes</p>
+          {loading && agents.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              Carregando agents...
             </div>
+          ) : agents.length === 0 ? (
+            <EmptyAgentsState onCreateAgent={() => window.location.href = `/agents/new?locationId=${locationId}`} />
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {agents.map((agent) => (
+                <AgentCard
+                  key={agent.id}
+                  agent={agent}
+                  isSelected={selectedAgentId === agent.id}
+                  showActions={true}
+                  onSelect={(agentId) => {
+              setSelectedAgentId(agentId);
+              setNewFaq(prev => ({ ...prev, agent_id: agentId }));
+              setNewSource(prev => ({ ...prev, agent_id: agentId }));
+            }}
+                  onEdit={(agent) => {
+                    window.location.href = `/agents/${agent.id}?locationId=${locationId}`;
+                  }}
+                  onDelete={async (agentId) => {
+                    if (!confirm('Tem certeza que deseja excluir este agent?')) return;
+                    
+                    try {
+                      const response = await fetch(`/api/agents/${agentId}`, {
+                        method: 'DELETE'
+                      });
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  ❓ Gerenciar FAQs
-                </CardTitle>
-                <CardDescription>
-                  Adicione, edite e remova perguntas e respostas frequentes
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {editingFaq ? (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Pergunta
-                      </label>
-                      <Input
-                        placeholder="Qual é a pergunta?"
-                        value={editingFaq.question}
-                        onChange={(e) => setEditingFaq({...editingFaq, question: e.target.value})}
-                      />
-                    </div>
+                      if (!response.ok) {
+                        const errorData = await response.json();
+                        if (response.status === 409) {
+                          showMessage('error', 'Não é possível excluir este agent pois ele possui fontes de conhecimento ou FAQs associados. Exclua primeiro todos os dados relacionados.');
+                            } else {
+                          throw new Error(errorData.error || 'Failed to delete agent');
+                        }
+                        return;
+                      }
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Resposta
-                      </label>
-                      <Textarea
-                        placeholder="Qual é a resposta?"
-                        rows={4}
-                        value={editingFaq.answer}
-                        onChange={(e) => setEditingFaq({...editingFaq, answer: e.target.value})}
-                      />
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={updateFaq}
-                        disabled={loading}
-                        className="flex-1"
-                      >
-                        {loading ? 'Salvando...' : 'Salvar Alterações'}
-                      </Button>
-                      <Button
-                        onClick={() => setEditingFaq(null)}
-                        variant="outline"
-                        disabled={loading}
-                      >
-                        Cancelar
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Pergunta
-                      </label>
-                      <Input
-                        placeholder="Qual é a pergunta?"
-                        value={newFaq.question}
-                        onChange={(e) => setNewFaq({...newFaq, question: e.target.value})}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Resposta
-                      </label>
-                      <Textarea
-                        placeholder="Qual é a resposta?"
-                        rows={4}
-                        value={newFaq.answer}
-                        onChange={(e) => setNewFaq({...newFaq, answer: e.target.value})}
-                      />
-                    </div>
-
-                    <Button
-                      onClick={createFaq}
-                      disabled={loading}
-                      className="w-full"
-                    >
-                      {loading ? 'Criando...' : 'Adicionar FAQ'}
-                    </Button>
-                  </>
-                )}
-
-                <div className="border-t pt-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-medium text-gray-900">FAQs Existentes</h3>
-                    <Button
-                      onClick={fetchFaqs}
-                      variant="outline"
-                      size="sm"
-                      disabled={loading}
-                    >
-                      {loading ? 'Carregando...' : 'Atualizar'}
-                    </Button>
-                  </div>
-
-                  {loading && faqs.length === 0 ? (
-                    <div className="text-center py-4 text-gray-500">
-                      Carregando FAQs...
-                    </div>
-                  ) : faqs.length === 0 ? (
-                    <div className="text-center py-4 text-gray-500">
-                      Nenhuma FAQ encontrada. Adicione a primeira!
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {faqs.map((faq) => (
-                        <div key={faq.id} className="p-4 bg-gray-50 rounded border">
-                          <div className="flex justify-between items-start mb-2">
-                            <h4 className="font-medium text-gray-900">{faq.question}</h4>
-                            <div className="flex gap-1">
-                              <Button
-                                onClick={() => setEditingFaq(faq)}
-                                variant="outline"
-                                size="sm"
-                                disabled={loading}
-                              >
-                                Editar
-                              </Button>
-                              <Button
-                                onClick={() => deleteFaq(faq.id)}
-                                variant="destructive"
-                                size="sm"
-                                disabled={loading}
-                              >
-                                Excluir
-                              </Button>
-                            </div>
-                          </div>
-                          <p className="text-sm text-gray-600 whitespace-pre-wrap">{faq.answer}</p>
-                          <p className="text-xs text-gray-400 mt-2">
-                            Criado em: {new Date(faq.created_at).toLocaleDateString('pt-BR')}
-                          </p>
-                        </div>
+                      setAgents(prev => prev.filter(agent => agent.id !== agentId));
+                      if (selectedAgentId === agentId) {
+                        setSelectedAgentId('');
+                      }
+                      showMessage('success', 'Agent excluído com sucesso!');
+                          } catch (error) {
+                      console.error('Error deleting agent:', error);
+                      showMessage('error', error instanceof Error ? error.message : 'Erro ao excluir agent');
+                    }
+                  }}
+                />
                       ))}
                     </div>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* New Source Modal */}
-        <Modal
-          isOpen={showNewSourceForm}
-          onClose={() => setShowNewSourceForm(false)}
-          title="🌐 Nova Fonte"
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                URL
-              </label>
-              <Input
-                placeholder="https://example.com"
-                type="url"
-                value={newSource.url}
-                onChange={(e) => setNewSource({...newSource, url: e.target.value})}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Escopo
-              </label>
-              <Select
-                value={newSource.scope}
-                onChange={(e) => setNewSource({...newSource, scope: e.target.value as 'domain' | 'path' | 'single'})}
-              >
-                <option value="single">Página única</option>
-                <option value="path">Caminho</option>
-                <option value="domain">Domínio completo</option>
-              </Select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Profundidade
-              </label>
-              <Input
-                type="number"
-                min="1"
-                max="5"
-                value={newSource.depth}
-                onChange={(e) => setNewSource({...newSource, depth: parseInt(e.target.value) || 1})}
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                onClick={async () => {
-                  await createSource();
-                  setShowNewSourceForm(false);
-                }}
-                disabled={loading}
-                className="flex-1"
-              >
-                {loading ? 'Criando...' : 'Salvar Fonte'}
-              </Button>
-              <Button
-                onClick={() => setShowNewSourceForm(false)}
-                variant="outline"
-                disabled={loading}
-              >
-                Cancelar
-              </Button>
-            </div>
-          </div>
-        </Modal>
-
-
-        {/* Crawl Result Modal */}
-        <Modal
-          isOpen={crawlResultModal.isOpen}
-          onClose={closeCrawlResultModal}
-          title={crawlResultModal.title}
-        >
-          <div className="space-y-4">
-            <div className={`p-4 rounded-lg ${
-              crawlResultModal.type === 'success' 
-                ? 'bg-green-50 border border-green-200' 
-                : 'bg-red-50 border border-red-200'
-            }`}>
-              <p className={`${
-                crawlResultModal.type === 'success' 
-                  ? 'text-green-800' 
-                  : 'text-red-800'
-              }`}>
-                {crawlResultModal.message}
-              </p>
-            </div>
-
-            {crawlResultModal.details && (
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-medium text-gray-900 mb-3">Detalhes do Crawl:</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">URL:</span>
-                    <span className="font-mono text-xs bg-gray-200 px-2 py-1 rounded">
-                      {crawlResultModal.details?.sourceUrl}
-                    </span>
-                  </div>
-                  
-                  {crawlResultModal.details?.pagesProcessed !== undefined && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Páginas processadas:</span>
-                      <span className="font-medium">{crawlResultModal.details.pagesProcessed}</span>
-                    </div>
-                  )}
-                  
-                  {crawlResultModal.details?.mode && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Modo:</span>
-                      <span className="font-medium">
-                        {crawlResultModal.details.mode === 'direct' ? 'Firecrawl Direto' : 'n8n Webhook'}
-                      </span>
-                    </div>
-                  )}
-                  
-                  {crawlResultModal.details?.duration && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Duração:</span>
-                      <span className="font-medium">{crawlResultModal.details.duration}s</span>
-                    </div>
-                  )}
-                  
-                  {crawlResultModal.details?.fallbackUsed && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Método:</span>
-                      <span className="font-medium text-yellow-600">Fallback (Scrape)</span>
-                    </div>
-                  )}
-                  
-                  {crawlResultModal.details?.error && (
-                    <div className="mt-3 p-3 bg-red-100 rounded border border-red-200">
-                      <p className="text-sm text-red-800">
-                        <strong>Erro:</strong> {crawlResultModal.details.error}
-                      </p>
-                    </div>
-                  )}
-                </div>
               </div>
-            )}
 
-            {crawlResultModal.type === 'success' && (
-              <div className="space-y-3">
-                {crawlResultModal.details?.fallbackUsed && (
-                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                    <p className="text-yellow-800 text-sm">
-                      ⚠️ <strong>Fallback usado:</strong> O crawl inicial falhou, mas conseguimos 
-                      extrair o conteúdo usando scrape da página principal. 
-                      {crawlResultModal.details?.originalError && (
-                        <> Erro original: {crawlResultModal.details.originalError}</>
-                      )}
-                    </p>
-                  </div>
-                )}
-                
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                  <p className="text-blue-800 text-sm">
-                    💡 <strong>Próximos passos:</strong> Os documentos foram salvos no banco de dados 
-                    e divididos em chunks para futuras consultas via RAG. Você pode usar essas informações 
-                    para treinar agentes de IA ou fazer buscas semânticas.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </Modal>
-      </div>
+      {/* Footer Section */}
+      <Footer />
     </div>
   );
 }

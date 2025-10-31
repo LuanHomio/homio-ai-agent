@@ -23,10 +23,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get source details
+    // Get source details with agent_id
     const { data: source, error: sourceError } = await supabase
       .from('kb_sources')
-      .select('*')
+      .select(`
+        *,
+        knowledge_base:knowledge_bases(
+          id,
+          agent_knowledge_bases(agent_id)
+        )
+      `)
       .eq('id', body.sourceId)
       .single();
 
@@ -37,11 +43,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get agent_id from knowledge_base relationship
+    const agentId = source.agent_id || source.knowledge_base?.agent_knowledge_bases?.[0]?.agent_id || null;
+
+    // Check if there's already a job in progress for this source
+    const { data: existingJob } = await supabase
+      .from('crawl_jobs')
+      .select('id, status, started_at, finished_at')
+      .eq('source_id', body.sourceId)
+      .in('status', ['pending', 'running'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (existingJob) {
+      return NextResponse.json(
+        { 
+          error: 'Já existe um crawl em andamento para esta fonte',
+          jobId: existingJob.id,
+          status: existingJob.status
+        },
+        { status: 409 }
+      );
+    }
+
     // Create crawl job
     const { data: job, error: jobError } = await supabase
       .from('crawl_jobs')
       .insert([{
         source_id: body.sourceId,
+        agent_id: agentId,
         status: 'pending',
         meta: { mode: body.mode }
       }])
@@ -90,7 +121,46 @@ async function processDirectCrawl(jobId: string, source: any) {
       })
       .eq('id', jobId);
 
-    // Perform crawl
+    // Fast path: try a quick scrape first to avoid slow/failed crawls
+    try {
+      const { scrapeWithFirecrawl } = await import('@/lib/firecrawl');
+      const quickScrape = await scrapeWithFirecrawl(source.url);
+      if (quickScrape?.success) {
+        // Normalize structure
+        const pageData = quickScrape.data?.data ? quickScrape.data.data : quickScrape.data;
+        const contentLen = pageData?.markdown?.length || pageData?.content?.length || 0;
+        if (contentLen >= 500) {
+          let processedCount = 0;
+          let errorCount = 0;
+          try {
+            await saveDocument(jobId, source.id, pageData);
+            processedCount++;
+          } catch (e) {
+            errorCount++;
+            console.error('❌ Erro ao salvar documento no quick scrape:', e);
+          }
+
+          await supabase
+            .from('crawl_jobs')
+            .update({
+              status: 'success',
+              finished_at: new Date().toISOString(),
+              meta: {
+                mode: 'direct',
+                pagesProcessed: processedCount,
+                errors: errorCount,
+                scrapeFirst: true
+              }
+            })
+            .eq('id', jobId);
+          return; // Done, skip full crawl
+        }
+      }
+    } catch (e) {
+      // Ignore scrape preflight errors and fall through to crawl
+    }
+
+    // Perform crawl if quick scrape didn't produce usable content
     const crawlResult = await crawlWithFirecrawl({
       url: source.url,
       scope: source.scope,
@@ -306,12 +376,28 @@ async function saveDocument(jobId: string, sourceId: string, page: any) {
     console.warn('⚠️ Conteúdo muito pequeno, pulando:', url);
     return;
   }
+
+  // Buscar agent_id da source
+  const { data: source } = await supabase
+    .from('kb_sources')
+    .select(`
+      agent_id,
+      knowledge_base:knowledge_bases(
+        id,
+        agent_knowledge_bases(agent_id)
+      )
+    `)
+    .eq('id', sourceId)
+    .single();
+
+  const agentId = source?.agent_id || source?.knowledge_base?.agent_knowledge_bases?.[0]?.agent_id || null;
   
   // Create document
   const { data: document, error: docError } = await supabase
     .from('documents')
     .insert([{
       source_id: sourceId,
+      agent_id: agentId,
       job_id: jobId,
       url: url,
       title: title,
@@ -343,6 +429,7 @@ async function saveDocument(jobId: string, sourceId: string, page: any) {
   
   const chunkInserts = chunks.map((content, index) => ({
     document_id: document.id,
+    agent_id: agentId,
     position: index,
     content,
     token_count: estimateTokenCount(content)
