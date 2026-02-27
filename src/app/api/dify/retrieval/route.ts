@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(response);
       }
 
-      items = textItems?.map(item => ({
+      items = textItems?.map((item: any) => ({
         ...item,
         similarity: 0.6
       })) || [];
