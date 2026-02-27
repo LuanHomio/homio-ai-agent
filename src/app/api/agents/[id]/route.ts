@@ -87,20 +87,20 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: 'Failed to check agent dependencies' }, { status: 500 });
     }
 
-    const { data: faqs, error: faqsError } = await supabase
-      .from('faqs')
+    const { data: knowledgeItems, error: itemsError } = await supabase
+      .from('knowledge_items')
       .select('id')
-      .eq('agent_id', params.id)
+      .in('content_type', ['faq', 'chunk', 'document'])
       .limit(1);
 
-    if (faqsError) {
-      console.error('Error checking FAQs:', faqsError);
+    if (itemsError) {
+      console.error('Error checking knowledge items:', itemsError);
       return NextResponse.json({ error: 'Failed to check agent dependencies' }, { status: 500 });
     }
 
-    if ((sources && sources.length > 0) || (faqs && faqs.length > 0)) {
+    if ((sources && sources.length > 0) || (knowledgeItems && knowledgeItems.length > 0)) {
       return NextResponse.json({ 
-        error: 'Cannot delete agent with existing KB sources or FAQs. Delete all associated data first.' 
+        error: 'Cannot delete agent with existing KB sources or knowledge items. Delete all associated data first.' 
       }, { status: 409 });
     }
 

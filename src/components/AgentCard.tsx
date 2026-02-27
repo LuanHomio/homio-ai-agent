@@ -76,20 +76,6 @@ export function AgentCard({
         </p>
       )}
 
-      <div className="space-y-2 mb-4">
-        {agent.personality && (
-          <div className="text-xs text-blue-400">
-            <span className="font-medium">Personalidade:</span> {agent.personality}
-          </div>
-        )}
-        
-        {agent.objective && (
-          <div className="text-xs text-purple-400">
-            <span className="font-medium">Objetivo:</span> {agent.objective}
-          </div>
-        )}
-      </div>
-
       <div className="flex items-center justify-between text-xs text-gray-500 mb-4">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-1">

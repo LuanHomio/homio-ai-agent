@@ -8,18 +8,22 @@ export async function GET(request: NextRequest) {
     const knowledgeBaseId = searchParams.get('knowledge_base_id');
 
     let query = supabase
-      .from('faqs')
+      .from('knowledge_items')
       .select(`
-        *,
+        id,
+        knowledge_base_id,
+        content,
+        metadata,
+        title,
+        created_at,
+        updated_at,
         knowledge_base:knowledge_bases(id, name, location:locations(name))
       `)
+      .eq('content_type', 'faq')
       .order('created_at', { ascending: false });
 
     if (knowledgeBaseId) {
       query = query.eq('knowledge_base_id', knowledgeBaseId);
-    } else if (agentId) {
-      // Fallback para compatibilidade
-      query = query.eq('agent_id', agentId);
     }
 
     const { data, error } = await query;
@@ -32,7 +36,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(data);
+    const faqs = data?.map(item => ({
+      id: item.id,
+      question: item.metadata?.question || item.title || '',
+      answer: item.metadata?.answer || item.content || '',
+      knowledge_base_id: item.knowledge_base_id,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+      knowledge_base: item.knowledge_base
+    })) || [];
+
+    return NextResponse.json(faqs);
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(
@@ -75,17 +89,30 @@ export async function POST(request: NextRequest) {
     // Get agent_id from knowledge_base relationship
     const agentId = body.agent_id || kb.agent_knowledge_bases?.[0]?.agent_id || null;
 
-    // Insert FAQ
+    const faqContent = `Q: ${body.question}\nA: ${body.answer}`;
+
+    // Insert FAQ as knowledge_item
     const { data, error } = await supabase
-      .from('faqs')
+      .from('knowledge_items')
       .insert([{
-        question: body.question,
-        answer: body.answer,
         knowledge_base_id: body.knowledge_base_id,
-        agent_id: agentId
+        content_type: 'faq',
+        content: faqContent,
+        title: body.question,
+        metadata: {
+          question: body.question,
+          answer: body.answer
+        },
+        token_count: Math.ceil(faqContent.length / 4)
       }])
       .select(`
-        *,
+        id,
+        knowledge_base_id,
+        content,
+        metadata,
+        title,
+        created_at,
+        updated_at,
         knowledge_base:knowledge_bases(id, name, location:locations(name))
       `)
       .single();
@@ -98,7 +125,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(data, { status: 201 });
+    const faq = {
+      id: data.id,
+      question: data.metadata?.question || data.title || '',
+      answer: data.metadata?.answer || '',
+      knowledge_base_id: data.knowledge_base_id,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+      knowledge_base: data.knowledge_base
+    };
+
+    return NextResponse.json(faq, { status: 201 });
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(

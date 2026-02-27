@@ -9,6 +9,7 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { MultiSelect, MultiSelectOption } from '@/components/ui/multi-select';
 import { Agent, UpdateAgentRequest, KnowledgeBase } from '@/lib/types';
+import { promptToMarkdown } from '@/lib/prompt-formatter';
 
 export default function EditAgentPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -92,31 +93,17 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
     }
   };
 
-  const generateSystemPrompt = (agent: Agent) => {
-    const parts = [];
-    
-    if (agent.personality) {
-      parts.push(`PERSONALIDADE:\n${agent.personality}`);
-    }
-    
-    if (agent.objective) {
-      parts.push(`OBJETIVO:\n${agent.objective}`);
-    }
-    
-    if (agent.additional_info) {
-      parts.push(`INFORMAÇÕES ADICIONAIS:\n${agent.additional_info}`);
-    }
-    
-    return parts.length > 0 ? parts.join('\n\n') : '';
-  };
-
   const updateAgent = async () => {
     if (!agent) return;
 
     setLoading(true);
     try {
-      // Gera system_prompt automaticamente baseado nos campos individuais
-      const generatedSystemPrompt = generateSystemPrompt(agent);
+      const markdownPrompt = promptToMarkdown(agent, {
+        includeHeader: true,
+        includeMetadata: false,
+        formatLists: true,
+        separator: '\n\n---\n\n'
+      });
       
       const updateData: UpdateAgentRequest = {
         name: agent.name,
@@ -124,7 +111,7 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
         personality: agent.personality,
         objective: agent.objective,
         additional_info: agent.additional_info,
-        system_prompt: generatedSystemPrompt, // Usa o gerado automaticamente
+        system_prompt: markdownPrompt,
         dify_app_id: agent.dify_app_id,
         settings: agent.settings,
         is_active: agent.is_active

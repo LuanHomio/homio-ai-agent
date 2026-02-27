@@ -63,17 +63,17 @@ async function getValidAgencyToken() {
 async function getOrCreateValidLocationToken(locationId: string, companyId: string) {
   const { data: row } = await supabase
     .from('location_token')
-    .select('accessToken, expires_at')
-    .eq('locationId', locationId)
+    .select('accesstoken, expires_at')
+    .eq('locationid', locationId)
     .maybeSingle();
 
-  if (row?.accessToken && row?.expires_at) {
+  if (row?.accesstoken && row?.expires_at) {
     const expSec = Math.floor(new Date(row.expires_at).getTime() / 1000);
     const now = Math.floor(Date.now() / 1000);
 
     if (now < expSec) {
       return {
-        access_token: row.accessToken.replace(/^Bearer\s+/i, ''),
+        access_token: row.accesstoken.replace(/^Bearer\s+/i, ''),
         expires_at: row.expires_at,
         source: 'cache'
       };
@@ -112,11 +112,11 @@ async function getOrCreateValidLocationToken(locationId: string, companyId: stri
   await supabase
     .from('location_token')
     .upsert({
-      locationId,
-      accessToken: tokenStr,
+      locationid: locationId,
+      accesstoken: tokenStr,
       expires_at: expiresAt.toISOString()
     }, {
-      onConflict: 'locationId',
+      onConflict: 'locationid',
       ignoreDuplicates: false
     });
 

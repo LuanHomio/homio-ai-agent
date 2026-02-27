@@ -24,15 +24,23 @@ export async function PATCH(
       );
     }
 
-    // Update FAQ
+    const faqContent = `Q: ${body.question}\nA: ${body.answer}`;
+
+    // Update FAQ in knowledge_items
     const { data, error } = await supabase
-      .from('faqs')
+      .from('knowledge_items')
       .update({
-        question: body.question,
-        answer: body.answer,
+        content: faqContent,
+        title: body.question,
+        metadata: {
+          question: body.question,
+          answer: body.answer
+        },
+        token_count: Math.ceil(faqContent.length / 4),
         updated_at: new Date().toISOString()
       })
       .eq('id', faqId)
+      .eq('content_type', 'faq')
       .select()
       .single();
 
@@ -51,7 +59,16 @@ export async function PATCH(
       );
     }
 
-    return NextResponse.json(data);
+    const faq = {
+      id: data.id,
+      question: data.metadata?.question || data.title || '',
+      answer: data.metadata?.answer || '',
+      knowledge_base_id: data.knowledge_base_id,
+      created_at: data.created_at,
+      updated_at: data.updated_at
+    };
+
+    return NextResponse.json(faq);
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(
@@ -75,11 +92,12 @@ export async function DELETE(
       );
     }
 
-    // Delete FAQ
+    // Delete FAQ from knowledge_items
     const { error } = await supabase
-      .from('faqs')
+      .from('knowledge_items')
       .delete()
-      .eq('id', faqId);
+      .eq('id', faqId)
+      .eq('content_type', 'faq');
 
     if (error) {
       console.error('Database error:', error);

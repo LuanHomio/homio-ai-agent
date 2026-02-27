@@ -7,12 +7,13 @@ export async function GET(request: NextRequest) {
     const sourceId = searchParams.get('sourceId');
 
     let query = supabase
-      .from('documents')
-      .select('id, source_id, url, title, created_at')
+      .from('knowledge_items')
+      .select('id, url, title, created_at, metadata')
+      .eq('content_type', 'document')
       .order('created_at', { ascending: false });
 
     if (sourceId) {
-      query = query.eq('source_id', sourceId);
+      query = query.eq('metadata->>source_id', sourceId);
     }
 
     const { data, error } = await query;
@@ -25,7 +26,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(data);
+    const documents = data?.map(item => ({
+      id: item.id,
+      source_id: item.metadata?.source_id || null,
+      url: item.url,
+      title: item.title,
+      created_at: item.created_at
+    })) || [];
+
+    return NextResponse.json(documents);
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(
