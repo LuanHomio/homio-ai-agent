@@ -18,7 +18,7 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
   
   const [activeTab, setActiveTab] = useState('detalhes');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; text: string } | null>(null);
   
   const [agent, setAgent] = useState<Agent | null>(null);
   const [companyName, setCompanyName] = useState('');

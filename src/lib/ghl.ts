@@ -122,7 +122,7 @@ export async function getLocationAccessToken(locationId: string, bearer?: string
     const text = await response.text();
     let json: any;
     try { json = text ? JSON.parse(text) : {}; } catch { json = { rawText: text }; }
-    
+
     const token = Array.isArray(json) ? json[0]?.access_token : json?.access_token;
     if (!token) {
       throw new Error(`GHL token missing access_token (status ${response.status}): ${JSON.stringify(json)}`);
@@ -133,4 +133,39 @@ export async function getLocationAccessToken(locationId: string, bearer?: string
   return await getLocationTokenServer(locationId);
 }
 
+export async function getLocationAccessTokenDetails(
+  locationId: string,
+  bearer?: string
+): Promise<{ token: string; status: number; raw: unknown }> {
+  if (bearer) {
+    const response = await fetch('https://services.leadconnectorhq.com/oauth/locationToken', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${bearer.replace(/^Bearer\s+/i, '')}`,
+        'Version': '2021-07-28',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({ locationId, companyId: config.ghl.companyId })
+    });
+
+    const text = await response.text();
+    let json: any;
+    try { json = text ? JSON.parse(text) : {}; } catch { json = { rawText: text }; }
+
+    const token = Array.isArray(json) ? json[0]?.access_token : json?.access_token;
+    if (!token) {
+      throw new Error(`GHL token missing access_token (status ${response.status}): ${JSON.stringify(json)}`);
+    }
+
+    return {
+      token: String(token).replace(/^Bearer\s+/i, ''),
+      status: response.status,
+      raw: json
+    };
+  }
+
+  const token = await getLocationTokenServer(locationId);
+  return { token, status: 200, raw: null };
+}
 
