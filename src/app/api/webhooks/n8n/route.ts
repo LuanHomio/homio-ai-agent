@@ -78,7 +78,11 @@ async function saveDocuments(jobId: string, documents: any[]) {
       return;
     }
 
-    const knowledgeBaseId = job.kb_sources?.knowledge_base?.id || job.kb_sources?.knowledge_base_id;
+    const kbSource = Array.isArray((job as any).kb_sources)
+      ? (job as any).kb_sources[0]
+      : (job as any).kb_sources;
+
+    const knowledgeBaseId = kbSource?.knowledge_base?.id || kbSource?.knowledge_base_id;
     if (!knowledgeBaseId) {
       console.error('Knowledge base not found for job:', jobId);
       return;
