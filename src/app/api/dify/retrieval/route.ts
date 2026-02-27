@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     const topK = body.top_k || 5;
 
     // Tentar busca vetorial primeiro (mais precisa)
-    let items: any[] | null = null;
+    let items: any[] = [];
     let useVectorSearch = true;
 
     try {
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fallback para busca textual se vetorial falhar
-    if (!useVectorSearch || !items || items.length === 0) {
+    if (!useVectorSearch || items.length === 0) {
       console.log('🔄 Usando busca textual como fallback para Dify...');
       const { data: textItems, error: textError } = await supabase
         .rpc('search_knowledge_items_text', {
