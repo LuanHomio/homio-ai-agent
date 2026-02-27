@@ -372,7 +372,9 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
         if (response.status === 409) {
           // Job já existe
           showMessage('warning', err.error || 'Já existe um crawl em andamento para esta fonte');
-          await fetchCrawlStatuses(activeKB);
+          if (activeKB) {
+            await fetchCrawlStatuses(activeKB);
+          }
           return;
         }
         
