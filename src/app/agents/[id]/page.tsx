@@ -330,6 +330,9 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
       title: 'Excluir Fonte',
       message: 'Tem certeza que deseja excluir esta fonte? Esta ação não pode ser desfeita.',
       onConfirm: async () => {
+        if (!activeKB) {
+          return;
+        }
         setLoading(true);
         try {
           const response = await fetch(`/api/kb/source?sourceId=${sourceId}`, {
