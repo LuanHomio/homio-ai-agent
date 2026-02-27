@@ -1,6 +1,4 @@
-import { Tool } from "@google/generative-ai";
-
-export const ghlTools: Tool[] = [
+export const ghlTools = [
   {
     functionDeclarations: [
       {

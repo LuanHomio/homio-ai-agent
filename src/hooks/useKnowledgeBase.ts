@@ -121,13 +121,13 @@ export function useKnowledgeBase() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(faqData)
       });
-      
+
+      const data = await response.json();
+
       if (response.ok) {
-        const updatedFaq = { ...faqData, id: faqId, created_at: '', updated_at: '' };
-        setFaqs(faqs.map(faq => faq.id === faqId ? updatedFaq : faq));
+        setFaqs(faqs.map(faq => (faq.id === faqId ? data : faq)));
         return { success: true };
       } else {
-        const data = await response.json();
         setError(data.error);
         return { success: false, error: data.error };
       }
