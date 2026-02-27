@@ -381,6 +381,11 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
         throw new Error(err.error || 'Failed to start crawl');
       }
       
+      if (!activeKB) {
+        setLoading(false);
+        return;
+      }
+
       await fetchSourcesForKB(activeKB);
       await fetchKBStats(activeKB);
       await fetchCrawlStatuses(activeKB);
