@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { HeroSection } from '@/components/HeroSection';
 import { EmptyAgentsState } from '@/components/EmptyAgentsState';
 import { AgentCard } from '@/components/AgentCard';
 import { Footer } from '@/components/Footer';
+import { getGHLUserData, type GHLUserData } from '@/lib/ghl-user-data';
 
 interface FAQ {
   id: string;
@@ -77,8 +78,11 @@ interface CrawlJob {
 
 export default function KnowledgeBasePage() {
   const searchParams = useSearchParams();
-  const locationId = searchParams.get('locationId') || 'd8voPwkhJK7k7S5xjHcA'; // Default para testes
-  
+
+  const [locationId, setLocationId] = useState<string>(searchParams.get('locationId') || '');
+  const [ghlUser, setGhlUser] = useState<GHLUserData | null>(null);
+  const [ghlLoading, setGhlLoading] = useState(true);
+  const [ghlError, setGhlError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('agents');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [faqs, setFaqs] = useState<FAQ[]>([]);
@@ -457,24 +461,85 @@ export default function KnowledgeBasePage() {
     }
   };
 
-  // Load data on component mount
+  // Detect GHL location on mount
+  useEffect(() => {
+    // If locationId already set via URL param, skip GHL detection
+    if (locationId) {
+      setGhlLoading(false);
+      return;
+    }
+
+    const detectGHLLocation = async () => {
+      try {
+        setGhlLoading(true);
+        const userData = await getGHLUserData();
+        setGhlUser(userData);
+        if (userData.activeLocation) {
+          setLocationId(userData.activeLocation);
+        } else {
+          setGhlError('No activeLocation found in GHL user data');
+        }
+      } catch (error) {
+        console.warn('GHL detection failed (may not be in iframe):', error);
+        setGhlError(
+          error instanceof Error ? error.message : 'Failed to detect GHL location'
+        );
+      } finally {
+        setGhlLoading(false);
+      }
+    };
+
+    detectGHLLocation();
+  }, []);
+
+  // Load data when locationId is available
   useEffect(() => {
     if (locationId) {
       fetchLocation();
-    fetchFaqs();
-    fetchSources();
-    fetchActiveJobs();
-    fetchAgents();
+      fetchFaqs();
+      fetchSources();
+      fetchActiveJobs();
+      fetchAgents();
     }
   }, [locationId]);
+
+  // Show loading while detecting GHL location
+  if (ghlLoading) {
+    return (
+      <div className="min-h-screen bg-background text-foreground dark flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Detectando location...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if no location detected
+  if (!locationId) {
+    return (
+      <div className="min-h-screen bg-background text-foreground dark flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <div className="text-red-400 text-5xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-white mb-2">Location não detectada</h2>
+          <p className="text-gray-400 mb-4">
+            {ghlError || 'Não foi possível identificar a location. Certifique-se de que a página está incorporada no GHL.'}
+          </p>
+          <p className="text-gray-500 text-sm">
+            Para teste, adicione <code className="bg-gray-800 px-1 rounded">?locationId=SEU_ID</code> na URL.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground dark">
       {/* Header/Hero Section */}
-      <HeroSection 
+      <HeroSection
         onCreateAgent={() => setActiveTab('agents')}
         agentsCount={agents.length}
-        locationName={location?.name || 'Carregando...'}
+        locationName={location?.name || ghlUser?.userName || 'Carregando...'}
         locationId={locationId}
       />
       

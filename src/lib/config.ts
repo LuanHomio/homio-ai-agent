@@ -25,6 +25,7 @@ export const config = {
     redirectUri: process.env.GHL_AUTH_REDIRECT_URI!,
     apiVersion: process.env.GHL_API_VERSION || '2021-07-28',
     appAccessToken: process.env.GHL_APP_ACCESS_TOKEN,
+    ssoKey: process.env.GHL_SSO_KEY || '1bb0cf82-08cf-4ff7-8f59-2ae5ff7df6d1',
   },
 } as const;
 
