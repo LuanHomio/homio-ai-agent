@@ -10,16 +10,17 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { MultiSelect, MultiSelectOption } from '@/components/ui/multi-select';
 import { Agent, UpdateAgentRequest, KnowledgeBase } from '@/lib/types';
 import { promptToMarkdown } from '@/lib/prompt-formatter';
+import { Settings, MessageSquare, BookOpen, ArrowLeft, Loader2, Plus, Trash2, Globe, Search, FileText, Check, X, Clock, Zap, ChevronDown, ExternalLink, RefreshCw, AlertTriangle, HelpCircle } from 'lucide-react';
 
 export default function EditAgentPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const locationId = searchParams.get('locationId') || 'd8voPwkhJK7k7S5xjHcA';
-  
+
   const [activeTab, setActiveTab] = useState('detalhes');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; text: string } | null>(null);
-  
+
   const [agent, setAgent] = useState<Agent | null>(null);
   const [companyName, setCompanyName] = useState('');
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
@@ -104,7 +105,7 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
         formatLists: true,
         separator: '\n\n---\n\n'
       });
-      
+
       const updateData: UpdateAgentRequest = {
         name: agent.name,
         description: agent.description,
@@ -143,7 +144,7 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
     setLoading(true);
     try {
       console.log('Updating agent knowledge bases:', selectedKnowledgeBases);
-      
+
       const response = await fetch(`/api/agents/${params.id}/knowledge-bases`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -258,12 +259,12 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
       const response = await fetch(`/api/kb/crawl/status?knowledgeBaseId=${kbId}`);
       if (!response.ok) return;
       const data = await response.json();
-      
+
       const statusMap: Record<string, any> = {};
       data.forEach((job: any) => {
         statusMap[job.source_id] = job;
       });
-      
+
       setCrawlStatuses(statusMap);
     } catch (error) {
       console.error('Error fetching crawl statuses:', error);
@@ -276,11 +277,11 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'text-yellow-400';
-      case 'running': return 'text-blue-400';
-      case 'success': return 'text-green-400';
+      case 'pending': return 'text-amber-400';
+      case 'running': return 'text-homio-purple-300';
+      case 'success': return 'text-emerald-400';
       case 'error': return 'text-red-400';
-      default: return 'text-gray-400';
+      default: return 'text-muted-foreground';
     }
   };
 
@@ -365,10 +366,10 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourceId, mode: 'direct' })
       });
-      
+
       if (!response.ok) {
         const err = await response.json();
-        
+
         if (response.status === 409) {
           // Job já existe
           showMessage('warning', err.error || 'Já existe um crawl em andamento para esta fonte');
@@ -377,10 +378,10 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
           }
           return;
         }
-        
+
         throw new Error(err.error || 'Failed to start crawl');
       }
-      
+
       if (!activeKB) {
         setLoading(false);
         return;
@@ -487,7 +488,7 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
     return (
       <div className="min-h-screen bg-background text-foreground dark flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <Loader2 className="h-12 w-12 text-homio-purple-500 mx-auto mb-4 animate-spin" />
           <p className="text-muted-foreground">Carregando agent...</p>
         </div>
       </div>
@@ -497,14 +498,14 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
   return (
     <div className="min-h-screen bg-background text-foreground dark">
       {/* Header Section */}
-      <div className="bg-gray-800 border-b border-gray-700">
+      <div className="bg-card border-b border-border animate-fade-in">
         <div className="max-w-7xl mx-auto px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">
+              <h1 className="text-3xl font-bold text-foreground mb-2">
                 {agent.name}
               </h1>
-              <p className="text-gray-400">
+              <p className="text-muted-foreground">
                 Configure seu agent de IA para automatizar conversas
               </p>
             </div>
@@ -513,6 +514,7 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                 variant="outline"
                 onClick={() => router.back()}
               >
+                <ArrowLeft className="w-4 h-4 mr-2" />
                 Voltar
               </Button>
               <Button
@@ -520,13 +522,15 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                 onClick={deleteAgent}
                 disabled={loading}
               >
+                <Trash2 className="w-4 h-4 mr-2" />
                 Excluir
               </Button>
               <Button
                 onClick={updateAgent}
                 disabled={loading}
+                className="bg-gradient-to-r from-homio-purple-600 to-homio-purple-500 hover:from-homio-purple-500 hover:to-homio-purple-400 shadow-lg shadow-homio-purple-500/20"
               >
-                {loading ? 'Salvando...' : 'Salvar Alterações'}
+                {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</> : <><Check className="w-4 h-4 mr-2" /> Salvar Alterações</>}
               </Button>
             </div>
           </div>
@@ -534,25 +538,29 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto p-8">
+      <div className="max-w-7xl mx-auto p-8 animate-slide-up">
         {message && (
-          <div className={`p-4 rounded-md mb-6 ${
-            message.type === 'success' 
-              ? 'bg-green-900/30 text-green-400 border border-green-800' 
+          <div className={`p-4 rounded-xl mb-6 flex items-center gap-3 ${
+            message.type === 'success'
+              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
               : message.type === 'warning'
-              ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-800'
+              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
               : message.type === 'info'
-              ? 'bg-blue-900/30 text-blue-400 border border-blue-800'
-              : 'bg-red-900/30 text-red-400 border border-red-800'
+              ? 'bg-homio-purple-500/10 text-homio-purple-200 border border-homio-purple-500/20'
+              : 'bg-red-500/10 text-red-400 border border-red-500/20'
           }`}>
+            {message.type === 'success' && <Check className="w-5 h-5 flex-shrink-0" />}
+            {message.type === 'warning' && <AlertTriangle className="w-5 h-5 flex-shrink-0" />}
+            {message.type === 'info' && <Zap className="w-5 h-5 flex-shrink-0" />}
+            {message.type === 'error' && <X className="w-5 h-5 flex-shrink-0" />}
             {message.text}
           </div>
         )}
 
 
         {/* Tabs Navigation */}
-        <div className="bg-gray-800 rounded-lg border border-gray-700 mb-6">
-          <div className="border-b border-gray-700">
+        <div className="bg-card rounded-xl border border-border mb-6">
+          <div className="border-b border-border">
             <div className="flex space-x-1 px-6">
               {tabs.map((tab) => (
                 <button
@@ -560,8 +568,8 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                   onClick={() => setActiveTab(tab.id)}
                   className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === tab.id
-                      ? 'border-blue-500 text-blue-400 bg-blue-900/30'
-                      : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
+                      ? 'border-homio-purple-500 text-homio-purple-300 bg-homio-purple-500/10'
+                      : 'border-transparent text-muted-foreground hover:text-foreground/80 hover:border-border'
                   }`}
                 >
                   <div className="flex flex-col items-center space-y-1">
@@ -576,11 +584,11 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
           {/* Tab Content */}
           <div className="p-6">
             {activeTab === 'detalhes' && (
-              <div className="space-y-6">
+              <div className="space-y-6 animate-slide-up">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-white mb-2">Informações Básicas</h3>
-                    <p className="text-gray-400">Configure as informações básicas do seu agent</p>
+                    <h3 className="text-lg font-semibold text-foreground mb-2">Informações Básicas</h3>
+                    <p className="text-muted-foreground">Configure as informações básicas do seu agent</p>
                   </div>
                   <Button
                     variant="outline"
@@ -591,7 +599,7 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
 
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-foreground/80 mb-2">
                       Nome do Agent *
                     </label>
                     <Input
@@ -602,7 +610,7 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-foreground/80 mb-2">
                       Nome da Empresa
                     </label>
                     <Input
@@ -613,7 +621,7 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-foreground/80 mb-2">
                       Descrição
                     </label>
                     <Textarea
@@ -629,21 +637,25 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                   <Button
                     onClick={updateAgent}
                     disabled={loading}
+                    className="bg-gradient-to-r from-homio-purple-600 to-homio-purple-500 hover:from-homio-purple-500 hover:to-homio-purple-400 shadow-lg shadow-homio-purple-500/20"
                   >
-                    {loading ? 'Salvando...' : 'Salvar Detalhes'}
+                    {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</> : 'Salvar Detalhes'}
                   </Button>
                 </div>
               </div>
             )}
 
             {activeTab === 'configuracoes' && (
-              <div className="space-y-6">
+              <div className="space-y-6 animate-slide-up">
                 <div>
-                  <h3 className="text-lg font-semibold text-white mb-4">Configurações Avançadas</h3>
-                  
+                  <h3 className="text-lg font-semibold text-foreground mb-4">
+                    <Settings className="w-5 h-5 inline-block mr-2" />
+                    Configurações Avançadas
+                  </h3>
+
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-foreground/80 mb-2">
                         Dify App ID
                       </label>
                       <Input
@@ -654,7 +666,7 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-foreground/80 mb-2">
                         Status do Agent
                       </label>
                       <div className="flex items-center space-x-4">
@@ -665,9 +677,9 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                             value="active"
                             checked={agent.is_active}
                             onChange={() => setAgent(prev => prev ? { ...prev, is_active: true } : null)}
-                            className="mr-2 text-blue-600"
+                            className="mr-2 text-homio-purple-600"
                           />
-                          <span className="text-gray-300">Ativo</span>
+                          <span className="text-foreground/80">Ativo</span>
                         </label>
                         <label className="flex items-center">
                           <input
@@ -676,9 +688,9 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                             value="inactive"
                             checked={!agent.is_active}
                             onChange={() => setAgent(prev => prev ? { ...prev, is_active: false } : null)}
-                            className="mr-2 text-blue-600"
+                            className="mr-2 text-homio-purple-600"
                           />
-                          <span className="text-gray-300">Inativo</span>
+                          <span className="text-foreground/80">Inativo</span>
                         </label>
                       </div>
                     </div>
@@ -688,18 +700,21 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
             )}
 
             {activeTab === 'prompt' && (
-              <div className="space-y-6">
+              <div className="space-y-6 animate-slide-up">
                 <div>
-                  <h3 className="text-lg font-semibold text-white mb-4">Configuração de Prompt</h3>
-                  
+                  <h3 className="text-lg font-semibold text-foreground mb-4">
+                    <FileText className="w-5 h-5 inline-block mr-2" />
+                    Configuração de Prompt
+                  </h3>
+
                   <div className="space-y-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-foreground/80 mb-2">
                         <span className="flex items-center">
                           Personalidade
                           <Tooltip content="O bot é você ou seu assistente? Ele é formal ou sarcástico? Diga ao bot quem ele é e como pode atingir seus objetivos e coisas para ter em mente ao falar com o contato.">
-                            <span className="cursor-help inline-flex items-center justify-center w-3 h-3 ml-1 text-[10px] font-medium text-gray-400 bg-gray-700 border border-gray-600 rounded-full hover:bg-gray-600 hover:text-white transition-colors">
-                              ?
+                            <span className="cursor-help inline-flex items-center justify-center w-3 h-3 ml-1">
+                              <HelpCircle className="w-3 h-3 text-muted-foreground hover:text-foreground transition-colors" />
                             </span>
                         </Tooltip>
                         </span>
@@ -713,12 +728,12 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-foreground/80 mb-2">
                         <span className="flex items-center">
                           Objetivo
                           <Tooltip content="O objetivo do bot. Use este espaço para definir qual é o objetivo do bot, como auxiliar com respostas a perguntas, agendar consultas, etc.">
-                            <span className="cursor-help inline-flex items-center justify-center w-3 h-3 ml-1 text-[10px] font-medium text-gray-400 bg-gray-700 border border-gray-600 rounded-full hover:bg-gray-600 hover:text-white transition-colors">
-                              ?
+                            <span className="cursor-help inline-flex items-center justify-center w-3 h-3 ml-1">
+                              <HelpCircle className="w-3 h-3 text-muted-foreground hover:text-foreground transition-colors" />
                             </span>
                         </Tooltip>
                         </span>
@@ -732,12 +747,12 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-foreground/80 mb-2">
                         <span className="flex items-center">
                           Informações Adicionais
                           <Tooltip content="Informações importantes do negócio, por que a conversa está acontecendo, quem é o contato, regras a seguir, etc. Adicione qualquer coisa que o bot precise saber para ajudá-lo a automatizar suas conversas e responder aos seus contatos.">
-                            <span className="cursor-help inline-flex items-center justify-center w-3 h-3 ml-1 text-[10px] font-medium text-gray-400 bg-gray-700 border border-gray-600 rounded-full hover:bg-gray-600 hover:text-white transition-colors">
-                              ?
+                            <span className="cursor-help inline-flex items-center justify-center w-3 h-3 ml-1">
+                              <HelpCircle className="w-3 h-3 text-muted-foreground hover:text-foreground transition-colors" />
                             </span>
                         </Tooltip>
                         </span>
@@ -757,45 +772,49 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                   <Button
                     onClick={updateAgent}
                     disabled={loading}
+                    className="bg-gradient-to-r from-homio-purple-600 to-homio-purple-500 hover:from-homio-purple-500 hover:to-homio-purple-400 shadow-lg shadow-homio-purple-500/20"
                   >
-                    {loading ? 'Salvando...' : 'Salvar Prompt'}
+                    {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</> : 'Salvar Prompt'}
                   </Button>
                 </div>
               </div>
             )}
 
             {activeTab === 'conhecimento' && (
-              <div className="space-y-6">
+              <div className="space-y-6 animate-slide-up">
                 <div>
-                  <h3 className="text-lg font-semibold text-white mb-4">Bases de Conhecimento</h3>
-                  
+                  <h3 className="text-lg font-semibold text-foreground mb-4">
+                    <BookOpen className="w-5 h-5 inline-block mr-2" />
+                    Bases de Conhecimento
+                  </h3>
+
                   <div className="space-y-6">
                     {/* Seleção de Bases de Conhecimento */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-foreground/80 mb-2">
                         Bases de Conhecimento Vinculadas
                       </label>
-                      <p className="text-sm text-gray-400 mb-3">
+                      <p className="text-sm text-muted-foreground mb-3">
                         Selecione quais bases de conhecimento este agent deve utilizar
                       </p>
-                      
+
                       <div className="flex gap-3">
                         <div className="flex-1 relative kb-selector-container">
-                          <div 
-                            className="w-full p-3 bg-gray-700 border border-gray-600 rounded-md cursor-pointer hover:border-gray-500 transition-colors"
+                          <div
+                            className="w-full p-3 bg-secondary border border-border rounded-xl cursor-pointer hover:border-homio-purple-500/20 transition-colors"
                             onClick={() => setShowKBSelector(!showKBSelector)}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex flex-wrap gap-1">
                                 {selectedKnowledgeBases.length === 0 ? (
-                                  <span className="text-gray-400">Selecione as bases de conhecimento...</span>
+                                  <span className="text-muted-foreground">Selecione as bases de conhecimento...</span>
                                 ) : (
                                   selectedKnowledgeBases.map((kbId) => {
                                     const kb = knowledgeBases.find(k => k.id === kbId);
                                     return kb ? (
                                       <span
                                         key={kbId}
-                                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-900/30 text-blue-300 text-sm rounded border border-blue-800"
+                                        className="inline-flex items-center gap-1 px-2 py-1 bg-homio-purple-500/10 text-homio-purple-200 text-sm rounded-lg border border-homio-purple-500/20"
                                       >
                                         {kb.name}
                                         <button
@@ -803,29 +822,27 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                                             e.stopPropagation();
                                             setSelectedKnowledgeBases(prev => prev.filter(id => id !== kbId));
                                           }}
-                                          className="ml-1 hover:text-blue-100"
+                                          className="ml-1 hover:text-homio-purple-100"
                                         >
-                                          ×
+                                          <X className="w-3 h-3" />
                                         </button>
                                       </span>
                                     ) : null;
                                   })
                                 )}
                               </div>
-                              <svg className="w-5 h-5 text-gray-400 transition-transform" style={{ transform: showKBSelector ? 'rotate(180deg)' : 'rotate(0deg)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
+                              <ChevronDown className={`w-5 h-5 text-muted-foreground transition-transform ${showKBSelector ? 'rotate-180' : 'rotate-0'}`} />
                             </div>
                           </div>
-                          
+
                           {showKBSelector && (
-                            <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-600 rounded-md shadow-lg z-10">
+                            <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-lg z-10">
                               {knowledgeBases.length > 0 ? (
                                 <div className="max-h-48 overflow-y-auto">
                                   {knowledgeBases.map((kb) => (
                                     <div
                                       key={kb.id}
-                                      className="p-3 hover:bg-gray-700 cursor-pointer border-b border-gray-700 last:border-b-0"
+                                      className="p-3 hover:bg-secondary cursor-pointer border-b border-border last:border-b-0"
                                       onClick={() => {
                                         if (selectedKnowledgeBases.includes(kb.id)) {
                                           setSelectedKnowledgeBases(prev => prev.filter(id => id !== kb.id));
@@ -836,16 +853,14 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                                     >
                                       <div className="flex items-center justify-between">
                                         <div>
-                                          <div className="text-white font-medium">{kb.name}</div>
+                                          <div className="text-foreground font-medium">{kb.name}</div>
                                           {kb.description && (
-                                            <div className="text-gray-400 text-sm">{kb.description}</div>
+                                            <div className="text-muted-foreground text-sm">{kb.description}</div>
                                           )}
                                         </div>
                                         {selectedKnowledgeBases.includes(kb.id) && (
-                                          <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                            </svg>
+                                          <div className="w-5 h-5 bg-homio-purple-500 rounded-full flex items-center justify-center">
+                                            <Check className="w-3 h-3 text-white" />
                                           </div>
                                         )}
                                       </div>
@@ -853,7 +868,7 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                                   ))}
                                 </div>
                               ) : (
-                                <div className="p-4 text-center text-gray-400">
+                                <div className="p-4 text-center text-muted-foreground">
                                   Nenhuma base de conhecimento encontrada
                                 </div>
                               )}
@@ -877,14 +892,14 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                           }}
                           variant="outline"
                         >
-                          {showCreateKB ? 'Cancelar' : 'Criar Nova Base'}
+                          {showCreateKB ? <><X className="w-4 h-4 mr-2" /> Cancelar</> : <><Plus className="w-4 h-4 mr-2" /> Criar Nova Base</>}
                         </Button>
                       </div>
-                      
+
                       {/* Formulário de Criação de Nova Base */}
                       {showCreateKB && (
-                        <div className="mt-4 p-4 bg-gray-800 border border-gray-600 rounded-md create-kb-container">
-                          <h4 className="text-white font-medium mb-3">Criar Nova Base de Conhecimento</h4>
+                        <div className="mt-4 p-4 bg-card border border-border rounded-xl create-kb-container">
+                          <h4 className="text-foreground font-medium mb-3">Criar Nova Base de Conhecimento</h4>
                           <div className="space-y-3">
                             <Input
                               value={newKBName}
@@ -902,8 +917,9 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                                 onClick={createKnowledgeBase}
                                 disabled={loading || !newKBName.trim()}
                                 size="sm"
+                                className="bg-gradient-to-r from-homio-purple-600 to-homio-purple-500 hover:from-homio-purple-500 hover:to-homio-purple-400 shadow-lg shadow-homio-purple-500/20"
                               >
-                                {loading ? 'Criando...' : 'Criar'}
+                                {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Criando...</> : <><Plus className="w-4 h-4 mr-2" /> Criar</>}
                               </Button>
                             </div>
                           </div>
@@ -914,28 +930,28 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                     {/* Sistema de Abas para Bases Selecionadas */}
                     {selectedKnowledgeBases.length > 0 && (
                       <div>
-                        <h4 className="text-md font-medium text-white mb-4">
+                        <h4 className="text-md font-medium text-foreground mb-4">
                           Gerenciar Conteúdo das Bases
                         </h4>
-                        
-                        <div className="bg-gray-800 rounded-lg border border-gray-700">
+
+                        <div className="bg-card rounded-xl border border-border">
                           {/* Navegação das Abas */}
-                          <div className="border-b border-gray-700">
+                          <div className="border-b border-border">
                             <div className="flex space-x-1 px-6">
                               {selectedKnowledgeBases.map((kbId) => {
                                 const kb = knowledgeBases.find(k => k.id === kbId);
                                 if (!kb) return null;
-                                
+
                                 const isActive = activeKB === kbId;
-                                
+
                                 return (
                                   <button
                                     key={kbId}
                                     onClick={() => setActiveKB(kbId)}
                                     className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                                      isActive 
-                                        ? 'border-blue-500 text-blue-400 bg-blue-900/30' 
-                                        : 'border-transparent text-gray-400 hover:text-white hover:border-gray-600'
+                                      isActive
+                                        ? 'border-homio-purple-500 text-homio-purple-300 bg-homio-purple-500/10'
+                                        : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                                     }`}
                                   >
                                     <div className="flex flex-col items-center space-y-1">
@@ -956,19 +972,19 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                               {(() => {
                                 const kb = knowledgeBases.find(k => k.id === activeKB);
                                 if (!kb) return null;
-                                
+
                                 return (
                                   <div className="space-y-6">
                                     <div>
-                                      <h5 className="text-lg font-semibold text-white mb-2">{kb.name}</h5>
+                                      <h5 className="text-lg font-semibold text-foreground mb-2">{kb.name}</h5>
                                       {kb.description && (
-                                        <p className="text-gray-400 text-sm mb-4">{kb.description}</p>
+                                        <p className="text-muted-foreground text-sm mb-4">{kb.description}</p>
                                       )}
-                                      
+
                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {/* Web Crawler */}
-                                        <div 
-                                          className="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition-colors cursor-pointer"
+                                        <div
+                                          className="bg-secondary rounded-xl p-4 border border-border hover:border-homio-purple-500/20 transition-colors cursor-pointer"
                                           onClick={async () => {
                                             if (!activeKB) return;
                                             setShowWebCrawlerManager((prev) => !prev);
@@ -977,14 +993,12 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                                         >
                                           <div className="flex items-center justify-between mb-3">
                                             <div className="flex items-center space-x-3">
-                                              <div className="w-10 h-10 bg-blue-900/30 rounded-lg flex items-center justify-center">
-                                                <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9" />
-                                                </svg>
+                                              <div className="w-10 h-10 bg-homio-purple-500/10 rounded-xl flex items-center justify-center">
+                                                <Globe className="w-5 h-5 text-homio-purple-300" />
                                               </div>
                                               <div>
-                                                <div className="text-white font-medium">Web Crawler</div>
-                                                <div className="text-gray-400 text-sm">
+                                                <div className="text-foreground font-medium">Web Crawler</div>
+                                                <div className="text-muted-foreground text-sm">
                                                   {getKBStats(activeKB).webCrawler} Links configurados
                                                 </div>
                                               </div>
@@ -999,17 +1013,18 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                                                 fetchSourcesForKB(activeKB);
                                               }}
                                             >
+                                              <Settings className="w-4 h-4 mr-1" />
                                               Gerenciar
                                             </Button>
                                           </div>
-                                          <p className="text-gray-400 text-xs">
+                                          <p className="text-muted-foreground text-xs">
                                             Adicione sites para fazer crawling automático e extrair conteúdo
                                           </p>
                                         </div>
 
                                         {/* FAQs */}
-                                        <div 
-                                          className="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition-colors cursor-pointer"
+                                        <div
+                                          className="bg-secondary rounded-xl p-4 border border-border hover:border-homio-purple-500/20 transition-colors cursor-pointer"
                                           onClick={() => {
                                             // TODO: Implementar gerenciador de FAQs
                                             showMessage('info', 'Gerenciador de FAQs em desenvolvimento');
@@ -1017,30 +1032,29 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                                         >
                                           <div className="flex items-center justify-between mb-3">
                                             <div className="flex items-center space-x-3">
-                                              <div className="w-10 h-10 bg-green-900/30 rounded-lg flex items-center justify-center">
-                                                <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
+                                              <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center">
+                                                <HelpCircle className="w-5 h-5 text-emerald-400" />
                                               </div>
                                               <div>
-                                                <div className="text-white font-medium">FAQs</div>
-                                                <div className="text-gray-400 text-sm">
+                                                <div className="text-foreground font-medium">FAQs</div>
+                                                <div className="text-muted-foreground text-sm">
                                                   {getKBStats(activeKB).faqs} Perguntas cadastradas
                                                 </div>
                                               </div>
                                             </div>
-                                            <Button 
-                                              size="sm" 
+                                            <Button
+                                              size="sm"
                                               variant="outline"
                                               onClick={(e) => {
                                                 e.stopPropagation();
                                                 showMessage('info', 'Gerenciador de FAQs em desenvolvimento');
                                               }}
                                             >
+                                              <Settings className="w-4 h-4 mr-1" />
                                               Gerenciar
                                             </Button>
                                           </div>
-                                          <p className="text-gray-400 text-xs">
+                                          <p className="text-muted-foreground text-xs">
                                             Crie perguntas e respostas frequentes para o agent
                                           </p>
                                         </div>
@@ -1048,8 +1062,11 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
 
                                       {/* Web Crawler Manager */}
                                       {showWebCrawlerManager && activeKB && (
-                                        <div className="mt-4 bg-gray-800 border border-gray-700 rounded-md p-4">
-                                          <h6 className="text-white font-medium mb-3">Gerenciar Web Crawler</h6>
+                                        <div className="mt-4 bg-card border border-border rounded-xl p-4">
+                                          <h6 className="text-foreground font-medium mb-3">
+                                            <Globe className="w-4 h-4 inline-block mr-2" />
+                                            Gerenciar Web Crawler
+                                          </h6>
                                           <div className="flex gap-3 mb-4">
                                             <Input
                                               value={newSourceUrl}
@@ -1057,41 +1074,41 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                                               placeholder="https://site.com"
                                               className="flex-1"
                                             />
-                                            <Button size="sm" onClick={createSourceForKB} disabled={loading || !newSourceUrl.trim()}>
-                                              {loading ? 'Adicionando...' : 'Adicionar Fonte'}
+                                            <Button size="sm" onClick={createSourceForKB} disabled={loading || !newSourceUrl.trim()} className="bg-gradient-to-r from-homio-purple-600 to-homio-purple-500 hover:from-homio-purple-500 hover:to-homio-purple-400 shadow-lg shadow-homio-purple-500/20">
+                                              {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Adicionando...</> : <><Plus className="w-4 h-4 mr-2" /> Adicionar Fonte</>}
                                             </Button>
                                           </div>
-                                          <div className="text-xs text-gray-400 mb-3">
+                                          <div className="text-xs text-muted-foreground mb-3">
                                             Configuração automática: Caminho com profundidade 3
                                           </div>
 
                                           <div className="space-y-2">
                                             {kbSourcesForActive.length === 0 ? (
-                                              <div className="text-gray-400 text-sm">Nenhuma fonte cadastrada para esta base.</div>
+                                              <div className="text-muted-foreground text-sm">Nenhuma fonte cadastrada para esta base.</div>
                                             ) : (
                                               kbSourcesForActive.map((s) => {
                                                 const crawlStatus = getCrawlStatus(s.id);
                                                 const isJobRunning = crawlStatus && ['pending', 'running'].includes(crawlStatus.status);
                                                 const isCompleted = crawlStatus && crawlStatus.status === 'success';
                                                 const hasError = crawlStatus && crawlStatus.status === 'error';
-                                                
+
                                                 // Determinar cor da borda baseada no status
-                                                let borderColor = 'border-gray-600';
-                                                if (isCompleted) borderColor = 'border-green-500';
+                                                let borderColor = 'border-border';
+                                                if (isCompleted) borderColor = 'border-emerald-500';
                                                 else if (hasError) borderColor = 'border-red-500';
-                                                else if (isJobRunning) borderColor = 'border-blue-500';
-                                                
+                                                else if (isJobRunning) borderColor = 'border-homio-purple-500';
+
                                                 return (
-                                                  <div key={s.id} className={`flex items-center justify-between bg-gray-700 border ${borderColor} rounded-md px-3 py-2`}>
+                                                  <div key={s.id} className={`flex items-center justify-between bg-secondary border ${borderColor} rounded-xl px-3 py-2`}>
                                                     <div className="flex-1 min-w-0">
-                                                      <div className="text-gray-200 text-sm truncate">{s.url}</div>
+                                                      <div className="text-foreground/80 text-sm truncate">{s.url}</div>
                                                       <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-xs text-gray-400">{s.scope} · d{s.depth}</span>
+                                                        <span className="text-xs text-muted-foreground">{s.scope} · d{s.depth}</span>
                                                         {crawlStatus && (
                                                           <span className={`text-xs ${getStatusColor(crawlStatus.status)}`}>
                                                             {getStatusText(crawlStatus.status)}
                                                             {crawlStatus.status === 'error' && crawlStatus.error && (
-                                                              <span className="ml-1" title={crawlStatus.error}>⚠️</span>
+                                                              <span className="ml-1" title={crawlStatus.error}><AlertTriangle className="w-3 h-3 inline-block" /></span>
                                                             )}
                                                           </span>
                                                         )}
@@ -1099,21 +1116,22 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                       {!isCompleted && (
-                                                        <Button 
-                                                          size="sm" 
-                                                          variant="outline" 
-                                                          onClick={() => startCrawlForSource(s.id)} 
+                                                        <Button
+                                                          size="sm"
+                                                          variant="outline"
+                                                          onClick={() => startCrawlForSource(s.id)}
                                                           disabled={loading || isJobRunning}
                                                         >
-                                                          {isJobRunning ? 'Executando...' : 'Iniciar Crawl'}
+                                                          {isJobRunning ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Executando...</> : <><RefreshCw className="w-4 h-4 mr-2" /> Iniciar Crawl</>}
                                                         </Button>
                                                       )}
-                                                      <Button 
-                                                        size="sm" 
-                                                        variant="destructive" 
-                                                        onClick={() => handleDeleteSource(s.id)} 
+                                                      <Button
+                                                        size="sm"
+                                                        variant="destructive"
+                                                        onClick={() => handleDeleteSource(s.id)}
                                                         disabled={loading}
                                                       >
+                                                        <Trash2 className="w-4 h-4 mr-1" />
                                                         Excluir
                                                       </Button>
                                                     </div>
@@ -1139,8 +1157,9 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                       <Button
                         onClick={updateAgentKnowledgeBases}
                         disabled={loading}
+                        className="bg-gradient-to-r from-homio-purple-600 to-homio-purple-500 hover:from-homio-purple-500 hover:to-homio-purple-400 shadow-lg shadow-homio-purple-500/20"
                       >
-                        {loading ? 'Salvando...' : 'Salvar Configurações'}
+                        {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</> : 'Salvar Configurações'}
                       </Button>
                     </div>
                   </div>
