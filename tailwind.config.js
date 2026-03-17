@@ -16,6 +16,9 @@ module.exports = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Montserrat', 'system-ui', '-apple-system', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -50,11 +53,30 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        homio: {
+          purple: {
+            50: '#f3e8ff',
+            100: '#e8d5ff',
+            200: '#d4b0ff',
+            300: '#b87aff',
+            400: '#a552fb',
+            500: '#5417b2',
+            600: '#361577',
+            700: '#2a1060',
+            800: '#1e0b48',
+            900: '#120630',
+          },
+          blue: {
+            DEFAULT: '#0f3d8c',
+            light: '#1356c9',
+          },
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        xl: "1rem",
       },
       keyframes: {
         "accordion-down": {
@@ -74,4 +96,3 @@ module.exports = {
   },
   plugins: [],
 }
-

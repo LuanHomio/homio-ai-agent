@@ -1,12 +1,16 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Montserrat } from 'next/font/google'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
+const montserrat = Montserrat({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-montserrat',
+})
 
 export const metadata: Metadata = {
-  title: 'Knowledge Base - Admin Panel',
-  description: 'Manage knowledge base sources, crawl content, and organize FAQs',
+  title: 'Homio AI Agent',
+  description: 'Gerencie agentes de IA inteligentes para automatizar conversas',
 }
 
 export default function RootLayout({
@@ -15,9 +19,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="pt-BR" className={montserrat.variable}>
+      <body className={montserrat.className}>{children}</body>
     </html>
   )
 }
-

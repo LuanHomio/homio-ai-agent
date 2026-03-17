@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { Bot, Plus, AlertTriangle, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -380,7 +381,7 @@ export default function KnowledgeBasePage() {
             if (job.status === 'success') {
               showCrawlResultModal(
                 'success',
-                '🎉 Crawl Concluído com Sucesso!',
+                'Crawl Concluido com Sucesso',
                 `O crawl da fonte foi finalizado com sucesso!`,
                 {
                   sourceUrl: source?.url,
@@ -396,7 +397,7 @@ export default function KnowledgeBasePage() {
             } else {
               showCrawlResultModal(
                 'error',
-                '❌ Erro no Crawl',
+                'Erro no Crawl',
                 `Ocorreu um erro durante o processo de crawl.`,
                 {
                   sourceUrl: source?.url,
@@ -507,9 +508,11 @@ export default function KnowledgeBasePage() {
   if (ghlLoading) {
     return (
       <div className="min-h-screen bg-background text-foreground dark flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-400">Detectando location...</p>
+        <div className="text-center animate-fade-in">
+          <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-homio-purple-500/10 border border-homio-purple-500/20 flex items-center justify-center animate-pulse-glow">
+            <Loader2 className="w-8 h-8 text-homio-purple-400 animate-spin" />
+          </div>
+          <p className="text-muted-foreground font-medium">Detectando location...</p>
         </div>
       </div>
     );
@@ -519,14 +522,16 @@ export default function KnowledgeBasePage() {
   if (!locationId) {
     return (
       <div className="min-h-screen bg-background text-foreground dark flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <div className="text-red-400 text-5xl mb-4">⚠️</div>
-          <h2 className="text-xl font-bold text-white mb-2">Location não detectada</h2>
-          <p className="text-gray-400 mb-4">
-            {ghlError || 'Não foi possível identificar a location. Certifique-se de que a página está incorporada no GHL.'}
+        <div className="text-center max-w-md animate-scale-in">
+          <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+            <AlertTriangle className="w-8 h-8 text-red-400" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground mb-2">Location nao detectada</h2>
+          <p className="text-muted-foreground mb-4 leading-relaxed">
+            {ghlError || 'Nao foi possivel identificar a location. Certifique-se de que a pagina esta incorporada no GHL.'}
           </p>
-          <p className="text-gray-500 text-sm">
-            Para teste, adicione <code className="bg-gray-800 px-1 rounded">?locationId=SEU_ID</code> na URL.
+          <p className="text-muted-foreground/50 text-sm">
+            Para teste, adicione <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground/70 text-xs">?locationId=SEU_ID</code> na URL.
           </p>
         </div>
       </div>
@@ -542,63 +547,69 @@ export default function KnowledgeBasePage() {
         locationName={location?.name || ghlUser?.userName || 'Carregando...'}
         locationId={locationId}
       />
-      
+
       {/* Main Content - Agents Section */}
-      <div className="max-w-7xl mx-auto p-8">
+      <div className="max-w-6xl mx-auto px-4 py-10">
         {message && (
-          <div className={`p-4 rounded-md mb-6 ${
-            message.type === 'success' 
-              ? 'bg-green-900/30 text-green-400 border border-green-800' 
-              : 'bg-red-900/30 text-red-400 border border-red-800'
+          <div className={`p-4 rounded-xl mb-6 text-sm font-medium animate-slide-up ${
+            message.type === 'success'
+              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+              : 'bg-red-500/10 text-red-400 border border-red-500/20'
           }`}>
             {message.text}
           </div>
         )}
 
         <div className="mb-12">
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex justify-between items-center mb-8 animate-slide-up">
             <div>
-              <h2 className="text-3xl font-bold text-white mb-2">
-                🤖 Meus Agents
+              <h2 className="text-2xl font-bold text-foreground mb-1">
+                Meus Agents
               </h2>
-              <p className="text-gray-400">
+              <p className="text-muted-foreground text-sm">
                 Gerencie e configure seus agentes de IA
               </p>
             </div>
-            <Button 
+            <button
               onClick={() => window.location.href = `/agents/new?locationId=${locationId}`}
-              className="px-6 py-3"
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl
+                bg-gradient-to-r from-homio-purple-600 to-homio-purple-500 text-white
+                hover:from-homio-purple-500 hover:to-homio-purple-400
+                shadow-lg shadow-homio-purple-500/20 hover:shadow-homio-purple-500/30
+                transition-all duration-300"
             >
+              <Plus className="w-4 h-4" />
               Criar Agent
-            </Button>
+            </button>
           </div>
 
           {loading && agents.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-              Carregando agents...
+            <div className="text-center py-16 animate-fade-in">
+              <Loader2 className="w-8 h-8 text-homio-purple-400 animate-spin mx-auto mb-4" />
+              <p className="text-muted-foreground text-sm">Carregando agents...</p>
             </div>
           ) : agents.length === 0 ? (
             <EmptyAgentsState onCreateAgent={() => window.location.href = `/agents/new?locationId=${locationId}`} />
           ) : (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {agents.map((agent) => (
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {agents.map((agent, index) => (
                 <AgentCard
                   key={agent.id}
                   agent={agent}
+                  index={index}
                   isSelected={selectedAgentId === agent.id}
                   showActions={true}
                   onSelect={(agentId) => {
-              setSelectedAgentId(agentId);
-              setNewFaq(prev => ({ ...prev, agent_id: agentId }));
-              setNewSource(prev => ({ ...prev, agent_id: agentId }));
-            }}
+                    setSelectedAgentId(agentId);
+                    setNewFaq(prev => ({ ...prev, agent_id: agentId }));
+                    setNewSource(prev => ({ ...prev, agent_id: agentId }));
+                  }}
                   onEdit={(agent) => {
                     window.location.href = `/agents/${agent.id}?locationId=${locationId}`;
                   }}
                   onDelete={async (agentId) => {
                     if (!confirm('Tem certeza que deseja excluir este agent?')) return;
-                    
+
                     try {
                       const response = await fetch(`/api/agents/${agentId}`, {
                         method: 'DELETE'
@@ -607,29 +618,29 @@ export default function KnowledgeBasePage() {
                       if (!response.ok) {
                         const errorData = await response.json();
                         if (response.status === 409) {
-                          showMessage('error', 'Não é possível excluir este agent pois ele possui fontes de conhecimento ou FAQs associados. Exclua primeiro todos os dados relacionados.');
-                            } else {
+                          showMessage('error', 'Nao e possivel excluir este agent pois ele possui fontes de conhecimento ou FAQs associados.');
+                        } else {
                           throw new Error(errorData.error || 'Failed to delete agent');
                         }
                         return;
                       }
 
-                      setAgents(prev => prev.filter(agent => agent.id !== agentId));
+                      setAgents(prev => prev.filter(a => a.id !== agentId));
                       if (selectedAgentId === agentId) {
                         setSelectedAgentId('');
                       }
-                      showMessage('success', 'Agent excluído com sucesso!');
-                          } catch (error) {
+                      showMessage('success', 'Agent excluido com sucesso!');
+                    } catch (error) {
                       console.error('Error deleting agent:', error);
                       showMessage('error', error instanceof Error ? error.message : 'Erro ao excluir agent');
                     }
                   }}
                 />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Footer Section */}
       <Footer />
