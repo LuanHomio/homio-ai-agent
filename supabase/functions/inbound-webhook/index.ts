@@ -662,11 +662,9 @@ Deno.serve(async (req: Request) => {
     await sb("inbound_messages", "POST", { message_id: messageId, location_id: locationId, contact_id: contactId, conversation_id: conversationId, body: bodyText, raw_payload: payload, agent_id: ag.id, message_type: messageType, conversation_provider_id: conversationProviderId });
     const now = new Date();
     const sch = new Date(now.getTime() + 15000).toISOString();
-    let bId: any = null;
-    const existing = await sb(`conversation_batches?conversation_id=eq.${conversationId}&status=eq.pending&order=scheduled_at.desc&limit=1`);
-    bId = existing[0]?.id;
-    if (bId) await sb(`conversation_batches?id=eq.${bId}`, "PATCH", { scheduled_at: sch });
-    else { const nb = await sb("conversation_batches", "POST", { conversation_id: conversationId, status: "pending", scheduled_at: sch }); bId = nb[0].id; }
+    const batchResult = await sbRpc('upsert_conversation_batch', { p_conversation_id: conversationId, p_scheduled_at: sch });
+    const bId = batchResult?.[0]?.batch_id;
+    if (!bId) return new Response("Batch creation failed", { status: 500, headers: corsHeaders });
             await sb("inbound_jobs", "POST", { message_id: messageId, agent_id: ag.id, location_id: locationId, contact_id: contactId, conversation_id: conversationId, status: "pending", message_text: bodyText, batch_id: bId, scheduled_at: sch, knowledge_base_ids: kbIds, message_type: messageType, conversation_provider_id: conversationProviderId });
             const lock = await sbRpc('acquire_specific_batch_lock', { target_batch_id: bId, now_iso: now.toISOString(), lock_expiry_iso: new Date(now.getTime() - 120000).toISOString() });
             
