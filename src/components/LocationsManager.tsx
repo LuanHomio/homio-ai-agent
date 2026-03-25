@@ -154,12 +154,14 @@ export function LocationsManager({ onLocationSelect, selectedLocationId }: Locat
 
   useEffect(() => {
     fetchLocations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (newLocation.name && !newLocation.slug) {
       setNewLocation(prev => ({ ...prev, slug: generateSlug(prev.name) }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newLocation.name]);
 
   return (

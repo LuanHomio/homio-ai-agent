@@ -87,10 +87,12 @@ export function AgentsManager({ selectedLocationId, onAgentSelect, selectedAgent
 
   useEffect(() => {
     fetchLocations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     fetchAgents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLocationId]);
 
   return (
