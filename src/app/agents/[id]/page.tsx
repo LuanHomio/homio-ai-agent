@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ import { Settings, MessageSquare, BookOpen, ArrowLeft, Loader2, Plus, Trash2, Gl
 export default function EditAgentPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const locationId = searchParams.get('locationId') || 'd8voPwkhJK7k7S5xjHcA';
+  const locationId = searchParams.get('locationId') || '';
 
   const [activeTab, setActiveTab] = useState('detalhes');
   const [loading, setLoading] = useState(false);
@@ -47,9 +47,11 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
     onConfirm: () => {}
   });
 
+  const messageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const showMessage = (type: 'success' | 'error' | 'warning' | 'info', text: string) => {
+    if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
     setMessage({ type, text });
-    setTimeout(() => setMessage(null), 5000);
+    messageTimeoutRef.current = setTimeout(() => setMessage(null), 5000);
   };
 
   const fetchAgent = async () => {
@@ -422,9 +424,14 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
   };
 
   useEffect(() => {
-    fetchAgent();
-    fetchKnowledgeBases();
-    fetchAgentKnowledgeBases();
+    if (params.id) {
+      fetchAgent();
+      fetchAgentKnowledgeBases();
+    }
+    if (locationId) {
+      fetchKnowledgeBases();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id, locationId]);
 
   // Fechar dropdown ao clicar fora
@@ -457,6 +464,7 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
         fetchKBStats(kbId);
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKnowledgeBases]);
 
   // Buscar status dos crawls quando KB ativa mudar

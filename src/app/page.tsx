@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Bot, Plus, AlertTriangle, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -115,9 +115,11 @@ export default function KnowledgeBasePage() {
     type: 'success'
   });
 
+  const messageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const showMessage = (type: 'success' | 'error', text: string) => {
+    if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
     setMessage({ type, text });
-    setTimeout(() => setMessage(null), 5000);
+    messageTimeoutRef.current = setTimeout(() => setMessage(null), 5000);
   };
 
   const showCrawlResultModal = (type: 'success' | 'error', title: string, message: string, details?: any) => {
@@ -433,7 +435,10 @@ export default function KnowledgeBasePage() {
 
   const fetchLocation = async () => {
     try {
-      const response = await fetch(`/api/locations/${locationId}`);
+      const userName = ghlUser?.userName || '';
+      const response = await fetch(
+        `/api/locations/${locationId}?auto_create=true&user_name=${encodeURIComponent(userName)}`
+      );
       if (!response.ok) throw new Error('Failed to fetch location');
       const data = await response.json();
       setLocation(data);
@@ -491,6 +496,7 @@ export default function KnowledgeBasePage() {
     };
 
     detectGHLLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load data when locationId is available
@@ -502,6 +508,7 @@ export default function KnowledgeBasePage() {
       fetchActiveJobs();
       fetchAgents();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationId]);
 
   // Show loading while detecting GHL location

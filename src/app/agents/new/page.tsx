@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import { Settings, MessageSquare, BookOpen, ArrowLeft, Loader2 } from 'lucide-re
 export default function NewAgentPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const locationId = searchParams.get('locationId') || 'd8voPwkhJK7k7S5xjHcA';
+  const locationId = searchParams.get('locationId') || '';
 
   const [activeTab, setActiveTab] = useState('configuracoes');
   const [loading, setLoading] = useState(false);
@@ -35,9 +35,11 @@ export default function NewAgentPage() {
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<string[]>([]);
 
+  const messageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const showMessage = (type: 'success' | 'error', text: string) => {
+    if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
     setMessage({ type, text });
-    setTimeout(() => setMessage(null), 5000);
+    messageTimeoutRef.current = setTimeout(() => setMessage(null), 5000);
   };
 
   const fetchKnowledgeBases = async () => {
@@ -101,7 +103,10 @@ export default function NewAgentPage() {
   };
 
   useEffect(() => {
-    fetchKnowledgeBases();
+    if (locationId) {
+      fetchKnowledgeBases();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationId]);
 
   const tabs = [

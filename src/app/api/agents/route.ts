@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
         .single();
 
       if (locationError || !location) {
-        return NextResponse.json({ error: 'Location not found' }, { status: 404 });
+        // Location not registered yet — return empty array instead of error
+        return NextResponse.json([]);
       }
 
       query = query.eq('location_id', location.id);
