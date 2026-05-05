@@ -224,3 +224,41 @@ export interface InboundMessage {
   created_at: string;
 }
 
+// ============================================================
+// Agent Actions
+// ============================================================
+//
+// Os 7 tipos canonicos do GHL Conversation AI. Usar EXATAMENTE
+// estes nomes (camelCase) — os mesmos do schema da API GHL — pra
+// manter paridade e simplificar o builder dinamico no
+// inbound-webhook (config -> Gemini function_declaration).
+//
+// Schema completo de cada tipo: wiki/processos/processo_ghl_actions.md
+
+export const ACTION_TYPES = [
+  'triggerWorkflow',
+  'updateContactField',
+  'appointmentBooking',
+  'stopBot',
+  'humanHandOver',
+  'advancedFollowup',
+  'transferBot',
+] as const;
+
+export type ActionType = typeof ACTION_TYPES[number];
+
+export interface AgentAction {
+  id: string;
+  agent_id: string;
+  action_type: ActionType;
+  name: string;
+  description: string | null;
+  // `config` espelha o `details` do GHL com os mesmos nomes de campo.
+  // Validacao do shape por tipo fica na camada de API (Zod por discriminator).
+  config: Record<string, unknown>;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
