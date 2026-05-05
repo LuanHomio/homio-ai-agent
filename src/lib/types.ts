@@ -77,7 +77,6 @@ export interface Agent {
   objective?: string;
   additional_info?: string;
   system_prompt?: string;
-  dify_app_id?: string;
   settings: Record<string, any>;
   is_active: boolean;
   created_at: string;
@@ -110,7 +109,6 @@ export interface CreateAgentRequest {
   objective?: string;
   additional_info?: string;
   system_prompt?: string;
-  dify_app_id?: string;
   settings?: Record<string, any>;
 }
 
@@ -121,7 +119,6 @@ export interface UpdateAgentRequest {
   objective?: string;
   additional_info?: string;
   system_prompt?: string;
-  dify_app_id?: string;
   settings?: Record<string, any>;
   is_active?: boolean;
 }
@@ -147,20 +144,6 @@ export interface JobStatusResponse {
   status: JobStatus;
   error?: string;
   meta?: Record<string, any>;
-}
-
-export interface DifyRetrievalRequest {
-  query: string;
-  top_k?: number;
-  filters?: Record<string, any>;
-}
-
-export interface DifyRetrievalResponse {
-  chunks: Array<{
-    content: string;
-    score: number;
-    metadata: Record<string, any>;
-  }>;
 }
 
 export interface KnowledgeBase {

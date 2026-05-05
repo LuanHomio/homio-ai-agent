@@ -115,10 +115,6 @@ function formatMetadata(agent: Agent): string {
     metadata.push(`- **Localização**: ${agent.location.name}`);
   }
 
-  if (agent.dify_app_id) {
-    metadata.push(`- **Dify App ID**: \`${agent.dify_app_id}\``);
-  }
-
   metadata.push(`- **Status**: ${agent.is_active ? '✅ Ativo' : '❌ Inativo'}`);
 
   if (agent.created_at) {

@@ -27,7 +27,6 @@ export default function NewAgentPage() {
     objective: '',
     additional_info: '',
     system_prompt: '',
-    dify_app_id: '',
     settings: {}
   });
 
@@ -250,18 +249,6 @@ export default function NewAgentPage() {
                   <h3 className="text-lg font-semibold text-foreground mb-4">Configurações Avançadas</h3>
 
                   <div className="grid md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground/80 mb-2">
-                        Dify App ID
-                      </label>
-                      <Input
-                        value={agent.dify_app_id}
-                        onChange={(e) => setAgent(prev => ({ ...prev, dify_app_id: e.target.value }))}
-                        placeholder="ID da aplicação no Dify (opcional)"
-                        className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
-                      />
-                    </div>
-
                     <div>
                       <label className="block text-sm font-medium text-foreground/80 mb-2">
                         Status do Agent

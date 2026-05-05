@@ -46,7 +46,6 @@ interface Agent {
   description?: string;
   personality?: string;
   system_prompt?: string;
-  dify_app_id?: string;
   settings: Record<string, any>;
   is_active: boolean;
   created_at: string;

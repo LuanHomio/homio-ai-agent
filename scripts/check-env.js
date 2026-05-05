@@ -34,21 +34,6 @@ const REQUIRED_VARS = {
     example: 'fc-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
     validate: (value) => value.startsWith('fc-') && value.length > 20
   },
-  DIFY_API_BASE: {
-    description: 'Dify API Base URL',
-    example: 'https://api.dify.ai/v1',
-    validate: (value) => value.startsWith('https://') && value.includes('/v1')
-  },
-  DIFY_API_KEY: {
-    description: 'Dify API Key',
-    example: 'app-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-    validate: (value) => value.length > 20
-  },
-  EXTERNAL_KB_API_KEY: {
-    description: 'External Knowledge Base API Key',
-    example: 'kb_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-    validate: (value) => value.length > 20
-  }
 };
 
 const OPTIONAL_VARS = {

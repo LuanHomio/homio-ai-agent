@@ -38,3 +38,5 @@ next-env.d.ts
 # OneDrive specific
 .next/
 node_modules/
+# Claude Code local artifacts
+.claude/

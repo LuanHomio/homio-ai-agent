@@ -31,7 +31,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const body: UpdateAgentRequest = await request.json();
-    const { name, description, personality, objective, additional_info, system_prompt, dify_app_id, settings, is_active } = body;
+    const { name, description, personality, objective, additional_info, system_prompt, settings, is_active } = body;
 
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
@@ -40,7 +40,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (objective !== undefined) updateData.objective = objective;
     if (additional_info !== undefined) updateData.additional_info = additional_info;
     if (system_prompt !== undefined) updateData.system_prompt = system_prompt;
-    if (dify_app_id !== undefined) updateData.dify_app_id = dify_app_id;
     if (settings !== undefined) updateData.settings = settings;
     if (is_active !== undefined) updateData.is_active = is_active;
     updateData.updated_at = new Date().toISOString();

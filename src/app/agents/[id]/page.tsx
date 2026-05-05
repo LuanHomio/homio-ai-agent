@@ -115,7 +115,6 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
         objective: agent.objective,
         additional_info: agent.additional_info,
         system_prompt: markdownPrompt,
-        dify_app_id: agent.dify_app_id,
         settings: agent.settings,
         is_active: agent.is_active
       };
@@ -662,17 +661,6 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                   </h3>
 
                   <div className="grid md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground/80 mb-2">
-                        Dify App ID
-                      </label>
-                      <Input
-                        value={agent.dify_app_id || ''}
-                        onChange={(e) => setAgent(prev => prev ? { ...prev, dify_app_id: e.target.value } : null)}
-                        placeholder="ID da aplicação no Dify (opcional)"
-                      />
-                    </div>
-
                     <div>
                       <label className="block text-sm font-medium text-foreground/80 mb-2">
                         Status do Agent
