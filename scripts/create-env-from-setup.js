@@ -15,12 +15,7 @@ SUPABASE_SERVICE_ROLE=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 FIRECRAWL_API_KEY=fc-51b7b93aa1f74b088edef3bcf9bfad72
 
 # n8n Webhook (optional)
-N8N_CRAWL_WEBHOOK=https://your-n8n-instance.com/webhook/crawl
-
-# Dify Configuration
-DIFY_API_BASE=https://api.dify.ai/v1
-DIFY_API_KEY=app-1kX2DUoMmd9oW7thZ4s6krFe
-EXTERNAL_KB_API_KEY=dataset-uTwLJE3386A6hoLNKFip7qlf`;
+N8N_CRAWL_WEBHOOK=https://your-n8n-instance.com/webhook/crawl`;
 
 function createEnvLocal() {
   const envLocalPath = path.join(process.cwd(), '.env.local');

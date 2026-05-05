@@ -14,10 +14,7 @@ require('dotenv').config({ path: path.join(process.cwd(), '.env.local') });
 const REQUIRED_ENV_VARS = {
   SUPABASE_URL: 'Supabase Project URL',
   SUPABASE_SERVICE_ROLE: 'Supabase Service Role Key',
-  FIRECRAWL_API_KEY: 'Firecrawl API Key',
-  DIFY_API_BASE: 'Dify API Base URL',
-  DIFY_API_KEY: 'Dify API Key',
-  EXTERNAL_KB_API_KEY: 'External Knowledge Base API Key'
+  FIRECRAWL_API_KEY: 'Firecrawl API Key'
 };
 
 const OPTIONAL_ENV_VARS = {
@@ -97,45 +94,6 @@ async function testFirecrawlConnection() {
     return true;
   } catch (error) {
     console.log('❌ Firecrawl API connection failed:');
-    console.log(`   Error: ${error.message}`);
-    return false;
-  }
-}
-
-async function testDifyConnection() {
-  console.log('\n🔍 Testing Dify API...');
-  
-  try {
-    const apiBase = process.env.DIFY_API_BASE;
-    const apiKey = process.env.DIFY_API_KEY;
-    
-    if (!apiBase || !apiKey) {
-      throw new Error('Dify credentials not configured');
-    }
-    
-    // Test connection by listing datasets
-    const response = await fetch(`${apiBase}/datasets`, {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(`API error: ${response.status} ${errorData.error || response.statusText}`);
-    }
-    
-    const data = await response.json();
-    
-    console.log('✅ Dify API connection successful');
-    console.log(`   API Base: ${apiBase}`);
-    console.log(`   API Key: ${apiKey.substring(0, 20)}...`);
-    console.log(`   Datasets found: ${Array.isArray(data) ? data.length : 'N/A'}`);
-    
-    return true;
-  } catch (error) {
-    console.log('❌ Dify API connection failed:');
     console.log(`   Error: ${error.message}`);
     return false;
   }
@@ -252,30 +210,27 @@ async function runAllTests() {
     envVars: false,
     supabase: false,
     firecrawl: false,
-    dify: false,
     database: false,
     api: false
   };
-  
+
   // Test environment variables
   results.envVars = validateEnvironmentVariables();
-  
+
   // Test integrations only if env vars are valid
   if (results.envVars) {
     results.supabase = await testSupabaseConnection();
     results.firecrawl = await testFirecrawlConnection();
-    results.dify = await testDifyConnection();
     results.database = await testDatabaseTables();
     results.api = await testAPIEndpoints();
   }
-  
+
   // Summary
   console.log('\n' + '=' * 50);
   console.log('📊 Test Results Summary:');
   console.log(`   Environment Variables: ${results.envVars ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`   Supabase Connection: ${results.supabase ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`   Firecrawl API: ${results.firecrawl ? '✅ PASS' : '❌ FAIL'}`);
-  console.log(`   Dify API: ${results.dify ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`   Database Tables: ${results.database ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`   API Endpoints: ${results.api ? '✅ PASS' : '⚠️  MANUAL'}`);
   

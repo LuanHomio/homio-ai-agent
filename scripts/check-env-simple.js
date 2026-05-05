@@ -44,18 +44,6 @@ const REQUIRED_VARS = {
     description: 'Firecrawl API Key',
     validate: (value) => value.startsWith('fc-') && value.length > 20
   },
-  DIFY_API_BASE: {
-    description: 'Dify API Base URL',
-    validate: (value) => value.startsWith('https://') && value.includes('/v1')
-  },
-  DIFY_API_KEY: {
-    description: 'Dify API Key',
-    validate: (value) => value.length > 20
-  },
-  EXTERNAL_KB_API_KEY: {
-    description: 'External Knowledge Base API Key',
-    validate: (value) => value.length > 20
-  }
 };
 
 const OPTIONAL_VARS = {

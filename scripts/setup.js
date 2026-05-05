@@ -16,20 +16,12 @@ SUPABASE_SERVICE_ROLE=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 FIRECRAWL_API_KEY=fc-51b7b93aa1f74b088edef3bcf9bfad72
 
 # n8n Webhook (optional)
-N8N_CRAWL_WEBHOOK=https://your-n8n-instance.com/webhook/crawl
-
-# Dify Configuration
-DIFY_API_BASE=https://api.dify.ai/v1
-DIFY_API_KEY=app-1kX2DUoMmd9oW7thZ4s6krFe
-EXTERNAL_KB_API_KEY=dataset-uTwLJE3386A6hoLNKFip7qlf;
+N8N_CRAWL_WEBHOOK=https://your-n8n-instance.com/webhook/crawl`;
 
 const REQUIRED_ENV_VARS = [
   'SUPABASE_URL',
   'SUPABASE_SERVICE_ROLE',
-  'FIRECRAWL_API_KEY',
-  'DIFY_API_BASE',
-  'DIFY_API_KEY',
-  'EXTERNAL_KB_API_KEY'
+  'FIRECRAWL_API_KEY'
 ];
 
 function createEnvFile() {
@@ -119,7 +111,6 @@ function createDirectories() {
     'src/app/api/kb',
     'src/app/api/kb/jobs',
     'src/app/api/kb/faqs',
-    'src/app/api/dify',
     'src/app/api/webhooks/n8n',
     'docs'
   ];
@@ -142,7 +133,6 @@ function showNextSteps() {
   console.log('\n📚 Documentation:');
   console.log('- README.md - Main documentation');
   console.log('- docs/n8n-setup.md - n8n configuration');
-  console.log('- docs/dify-integration.md - Dify integration');
 }
 
 function main() {

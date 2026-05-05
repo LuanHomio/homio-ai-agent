@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body: CreateAgentRequest = await request.json();
-    const { location_id, name, description, personality, objective, additional_info, system_prompt, dify_app_id, settings = {} } = body;
+    const { location_id, name, description, personality, objective, additional_info, system_prompt, settings = {} } = body;
 
     if (!location_id || !name) {
       return NextResponse.json({ error: 'Location ID and name are required' }, { status: 400 });
@@ -75,7 +75,6 @@ export async function POST(request: NextRequest) {
         objective,
         additional_info,
         system_prompt,
-        dify_app_id,
         settings
       }])
       .select(`

@@ -10,11 +10,6 @@ export const config = {
   n8n: {
     webhookUrl: process.env.N8N_CRAWL_WEBHOOK,
   },
-  dify: {
-    apiBase: process.env.DIFY_API_BASE!,
-    apiKey: process.env.DIFY_API_KEY!,
-    externalKbApiKey: process.env.EXTERNAL_KB_API_KEY!,
-  },
   gemini: {
     apiKey: process.env.GEMINI_API_KEY!,
   },
@@ -35,9 +30,6 @@ export function validateConfig() {
     'SUPABASE_URL',
     'SUPABASE_SERVICE_ROLE',
     'FIRECRAWL_API_KEY',
-    'DIFY_API_BASE',
-    'DIFY_API_KEY',
-    'EXTERNAL_KB_API_KEY',
     'GEMINI_API_KEY',
     'GHL_CLIENT_ID',
     'GHL_CLIENT_SECRET',
