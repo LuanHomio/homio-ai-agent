@@ -1,0 +1,165 @@
+import { z } from 'zod';
+import { ACTION_TYPES, type ActionType } from './types';
+
+// Schemas do `config` por action_type — espelham 1:1 os campos da API
+// GHL (ver wiki/processos/processo_ghl_actions.md). Nomes mantidos
+// camelCase com prefixo por tipo (stopBotExamples etc) pra paridade com
+// o port futuro bidirecional.
+
+const triggerWorkflowConfig = z.object({
+  workflowIds: z.array(z.string().uuid()).min(1),
+  triggerCondition: z.string().min(1),
+});
+
+const updateContactFieldConfig = z.object({
+  contactFieldId: z.string().min(1),
+  description: z.string().min(1).max(500),
+  // Obrigatorio pra dataType=TEXT no GHL. Outros dataTypes (DATE,
+  // MULTIPLE_OPTIONS, etc) ainda nao foram sondados — manter optional
+  // ate confirmar shape final.
+  contactUpdateExamples: z.array(z.string()).optional(),
+});
+
+const appointmentBookingConfig = z.object({
+  calendarId: z.string().min(1),
+  onlySendLink: z.boolean().default(false),
+  triggerWorkflow: z.boolean().default(false),
+  sleepAfterBooking: z.boolean().default(false),
+  transferBot: z.boolean().default(false),
+  rescheduleEnabled: z.boolean().default(true),
+  cancelEnabled: z.boolean().default(true),
+});
+
+const sleepFields = {
+  reactivateEnabled: z.boolean().default(true),
+  sleepTime: z.number().int().positive().optional(),
+  sleepTimeUnit: z.enum(['minutes', 'hours', 'days']).optional(),
+};
+
+const stopBotConfig = z
+  .object({
+    stopBotDetectionType: z.enum(['Goodbye', 'Custom']),
+    stopBotTriggerCondition: z.string().min(10).max(500),
+    stopBotExamples: z.array(z.string()).min(2),
+    finalMessage: z.string().min(3).max(150),
+    enabled: z.boolean().default(true),
+    ...sleepFields,
+  })
+  .refine(
+    (d) => !d.reactivateEnabled || (d.sleepTime !== undefined && d.sleepTimeUnit !== undefined),
+    { message: 'sleepTime and sleepTimeUnit are required when reactivateEnabled=true', path: ['sleepTime'] },
+  );
+
+const transferBotConfig = z.object({
+  transferBotType: z.enum(['Default', 'Custom']),
+  transferToBot: z.string().min(1),
+  enabled: z.boolean().default(true),
+  transferBotTriggerCondition: z.string().min(10).max(500),
+  transferBotExamples: z.array(z.string()).min(2),
+});
+
+const advancedFollowupConfig = z.object({
+  enabled: z.boolean().default(true),
+  scenarioId: z.enum(['contactStoppedReplying', 'contactIsBusy', 'contactRequested']),
+  followupSequence: z
+    .array(
+      z.object({
+        id: z.number().int().min(1).max(5),
+        followupTime: z.number().int().min(1).max(180),
+        followupTimeUnit: z.enum(['minutes', 'hours', 'days']),
+        aiEnabledMessage: z.boolean().default(true),
+        triggerWorkflow: z.boolean().default(false),
+      }),
+    )
+    .min(1)
+    .max(5),
+});
+
+// `examples` aqui e generico (sem prefixo) — anomalia do GHL, mantido literal.
+const humanHandOverConfig = z
+  .object({
+    enabled: z.boolean().default(true),
+    triggerCondition: z.string().min(10).max(500),
+    handoverType: z.enum(['contactRequest', 'lackOfInformation', 'failedToResolveIssue', 'custom']),
+    examples: z.array(z.string()).min(1),
+    finalMessage: z.string().min(1),
+    assignToUserId: z.string().min(1),
+    skipAssignToUser: z.boolean().default(false),
+    createTask: z.boolean().default(false),
+    tags: z.array(z.string()).default([]),
+    ...sleepFields,
+  })
+  .refine(
+    (d) => !d.reactivateEnabled || (d.sleepTime !== undefined && d.sleepTimeUnit !== undefined),
+    { message: 'sleepTime and sleepTimeUnit are required when reactivateEnabled=true', path: ['sleepTime'] },
+  );
+
+const CONFIG_SCHEMAS: Record<ActionType, z.ZodTypeAny> = {
+  triggerWorkflow: triggerWorkflowConfig,
+  updateContactField: updateContactFieldConfig,
+  appointmentBooking: appointmentBookingConfig,
+  stopBot: stopBotConfig,
+  humanHandOver: humanHandOverConfig,
+  advancedFollowup: advancedFollowupConfig,
+  transferBot: transferBotConfig,
+};
+
+const baseFields = {
+  name: z.string().min(3).max(50),
+  description: z.string().max(500).nullable().optional(),
+  is_active: z.boolean().default(true),
+  sort_order: z.number().int().nonnegative().default(0),
+};
+
+const createActionBaseSchema = z.object({
+  action_type: z.enum(ACTION_TYPES),
+  config: z.unknown(),
+  ...baseFields,
+});
+
+const updateActionBaseSchema = z.object({
+  // action_type imutavel apos criacao — config validado contra o tipo atual
+  name: baseFields.name.optional(),
+  description: baseFields.description,
+  config: z.unknown().optional(),
+  is_active: z.boolean().optional(),
+  sort_order: z.number().int().nonnegative().optional(),
+});
+
+export type CreateAgentActionInput = z.infer<typeof createActionBaseSchema> & { config: Record<string, unknown> };
+export type UpdateAgentActionInput = z.infer<typeof updateActionBaseSchema>;
+
+export type ValidationError = { message: string; issues: z.ZodIssue[] };
+export type ValidationResult<T> = { ok: true; value: T } | { ok: false; error: ValidationError };
+
+function formatError(err: z.ZodError): ValidationError {
+  return { message: 'Validation failed', issues: err.issues };
+}
+
+export function validateCreateAction(input: unknown): ValidationResult<CreateAgentActionInput> {
+  const baseParsed = createActionBaseSchema.safeParse(input);
+  if (!baseParsed.success) return { ok: false, error: formatError(baseParsed.error) };
+
+  const configSchema = CONFIG_SCHEMAS[baseParsed.data.action_type];
+  const configParsed = configSchema.safeParse(baseParsed.data.config);
+  if (!configParsed.success) return { ok: false, error: formatError(configParsed.error) };
+
+  return { ok: true, value: { ...baseParsed.data, config: configParsed.data as Record<string, unknown> } };
+}
+
+export function validateUpdateAction(
+  input: unknown,
+  currentActionType: ActionType,
+): ValidationResult<UpdateAgentActionInput> {
+  const baseParsed = updateActionBaseSchema.safeParse(input);
+  if (!baseParsed.success) return { ok: false, error: formatError(baseParsed.error) };
+
+  if (baseParsed.data.config !== undefined) {
+    const configSchema = CONFIG_SCHEMAS[currentActionType];
+    const configParsed = configSchema.safeParse(baseParsed.data.config);
+    if (!configParsed.success) return { ok: false, error: formatError(configParsed.error) };
+    return { ok: true, value: { ...baseParsed.data, config: configParsed.data as Record<string, unknown> } };
+  }
+
+  return { ok: true, value: baseParsed.data };
+}
