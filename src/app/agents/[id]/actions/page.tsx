@@ -6,7 +6,7 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { useAgent } from '@/contexts/agent-context';
 import { ActionTypeSelectorModal } from '@/components/agent-actions/ActionTypeSelectorModal';
 import { ActionCard, type AgentActionRow } from '@/components/agent-actions/ActionCard';
-import { ACTION_TYPE_META } from '@/lib/agent-action-display';
+import { ActionFormModal } from '@/components/agent-actions/ActionFormModal';
 import type { ActionType } from '@/lib/types';
 import { Loader2, Plus, Zap } from 'lucide-react';
 
@@ -17,7 +17,8 @@ export default function ActionsTabPage() {
   const [fetching, setFetching] = useState(true);
   const [busy, setBusy] = useState(false);
   const [showTypeSelector, setShowTypeSelector] = useState(false);
-  const [pendingType, setPendingType] = useState<ActionType | null>(null);
+  const [createType, setCreateType] = useState<ActionType | null>(null);
+  const [editAction, setEditAction] = useState<AgentActionRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AgentActionRow | null>(null);
 
   const fetchActions = async () => {
@@ -42,12 +43,20 @@ export default function ActionsTabPage() {
 
   const handleSelectType = (type: ActionType) => {
     setShowTypeSelector(false);
-    setPendingType(type);
+    setCreateType(type);
   };
 
   const handleEdit = (action: AgentActionRow) => {
-    setPendingType(action.action_type);
-    showMessage('info', `Edição da ação "${action.name}" — formulário disponível no próximo PR`);
+    setEditAction(action);
+  };
+
+  const handleSaved = (saved: AgentActionRow) => {
+    setActions((prev) => {
+      const exists = prev.some((a) => a.id === saved.id);
+      if (exists) return prev.map((a) => (a.id === saved.id ? { ...a, ...saved } : a));
+      return [...prev, saved];
+    });
+    showMessage('success', editAction ? 'Ação atualizada com sucesso!' : 'Ação criada com sucesso!');
   };
 
   const confirmDelete = async () => {
@@ -130,25 +139,17 @@ export default function ActionsTabPage() {
         onSelect={handleSelectType}
       />
 
-      {pendingType && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setPendingType(null)} />
-          <div className="relative bg-card border border-border rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-foreground mb-2">
-              {ACTION_TYPE_META[pendingType].label}
-            </h3>
-            <p className="text-sm text-muted-foreground mb-6">
-              O formulário deste tipo de ação chega no próximo PR (5b/7). Por enquanto a infraestrutura de
-              lista, seleção e exclusão está disponível.
-            </p>
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={() => setPendingType(null)}>
-                Fechar
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ActionFormModal
+        isOpen={createType !== null || editAction !== null}
+        agentId={agentId}
+        editAction={editAction}
+        createType={createType}
+        onClose={() => {
+          setCreateType(null);
+          setEditAction(null);
+        }}
+        onSaved={handleSaved}
+      />
 
       <ConfirmModal
         isOpen={deleteTarget !== null}

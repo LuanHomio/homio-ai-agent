@@ -94,7 +94,7 @@ const humanHandOverConfig = z
     { message: 'sleepTime and sleepTimeUnit are required when reactivateEnabled=true', path: ['sleepTime'] },
   );
 
-const CONFIG_SCHEMAS: Record<ActionType, z.ZodTypeAny> = {
+export const CONFIG_SCHEMAS: Record<ActionType, z.ZodTypeAny> = {
   triggerWorkflow: triggerWorkflowConfig,
   updateContactField: updateContactFieldConfig,
   appointmentBooking: appointmentBookingConfig,
