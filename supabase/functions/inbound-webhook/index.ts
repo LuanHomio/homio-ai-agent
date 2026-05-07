@@ -1,4 +1,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import {
+  loadActiveActions,
+  buildToolsFromActions,
+  tryExecuteAgentAction,
+  fnNameForAction,
+  type ToolDeclaration,
+  type ActionContext,
+} from "../_shared/agent-action-runtime.ts";
 
 declare const Deno: any;
 declare const EdgeRuntime: any;
@@ -310,87 +319,97 @@ async function runBatch(batchId: string) {
 
     const prompt = `${agent.personality}\n${agent.objective}\n\nCONTEXTO IMPORTANTE (GHL/CRM):\n- Você é um agente interno operando dentro do CRM GoHighLevel (GHL).\n- O cliente NÃO tem acesso a IDs internos, tokens, payloads ou ao “cadastro bruto”.\n- NUNCA peça IDs internos (contactId, conversationId, etc) e NUNCA mencione esses IDs.\n- Se você não conseguir acessar um dado no CRM, diga que não conseguiu acessar a informação no momento.\n\nCAMPOS NATIVOS (contato) — dicionário prático:\n- Primeiro Nome: firstName\n- Sobrenome: lastName\n- Nome completo (Nome): name = firstName + lastName\n- Email: email\n- Telefone: phone\n- Empresa: companyName OU businessName OU company\n- Endereço (pense como um “objeto endereço” com campos):\n  - street/address1: Rua\n  - state: Estado\n  - country: País\n  - postalCode: CEP\n  - city: Cidade\n  - address2: Complemento\n\nREGRAS:\n- “Nome” normalmente é o nome completo (firstName + lastName), mas você pode atualizar Primeiro Nome e Sobrenome separadamente.\n\nCAPACIDADES:\n- Consultar o contato atual (GET CONTACT) para ver o cadastro.\n- Atualizar dados do contato (MANAGE CONTACT) quando o usuário solicitar.\n- Consultar campos personalizados disponíveis (GET CUSTOM FIELDS) se precisar entender IDs.\n\nFORMATAÇÃO:\n- Use *asteriscos* para negrito e _underscores_ para itálico.`;
 
-    const tools = [{
-      function_declarations: [
-        {
-          name: "ghl_get_custom_fields",
-          description: "Busca a lista de campos personalizados (custom fields) disponíveis na GoHighLevel para contatos ou oportunidades. Se locationId não for informado, o backend preencherá automaticamente.",
-          parameters: {
-            type: "object",
-            properties: {
-              locationId: { type: "string", description: "O ID da location na GHL" },
-              model: { type: "string", enum: ["contact", "opportunity"], description: "O modelo de dados para buscar os campos" }
-            },
-            required: []
-          }
-        },
-        {
-          name: "ghl_manage_contact",
-          description: "Ferramenta central para gerenciar contatos na GHL. Pode atualizar dados básicos, campos personalizados, adicionar/remover tags, criar notas e inserir em workflows, tudo em uma única chamada. Se locationId/contactId não forem informados, o backend preencherá automaticamente.",
-          parameters: {
-            type: "object",
-            properties: {
-              locationId: { type: "string" },
-              contactId: { type: "string" },
-              updates: {
-                type: "object",
-                description: "Campos para atualizar (firstName, lastName, name, email, phone, businessName/companyName/company, customFields).",
-                properties: {
-                  firstName: { type: "string" },
-                  lastName: { type: "string" },
-                  name: { type: "string" },
-                  email: { type: "string" },
-                  phone: { type: "string" },
-                  businessName: { type: "string" },
-                  companyName: { type: "string" },
-                  company: { type: "string" },
-                  customFields: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        id: { type: "string", description: "O ID único do campo" },
-                        field_value: { type: "string", description: "O valor a ser gravado" }
-                      },
-                      required: ["id", "field_value"]
-                    }
+    const BASE_DECLARATIONS: ToolDeclaration[] = [
+      {
+        name: "ghl_get_custom_fields",
+        description: "Busca a lista de campos personalizados (custom fields) disponíveis na GoHighLevel para contatos ou oportunidades. Se locationId não for informado, o backend preencherá automaticamente.",
+        parameters: {
+          type: "object",
+          properties: {
+            locationId: { type: "string", description: "O ID da location na GHL" },
+            model: { type: "string", enum: ["contact", "opportunity"], description: "O modelo de dados para buscar os campos" }
+          },
+          required: []
+        }
+      },
+      {
+        name: "ghl_manage_contact",
+        description: "Ferramenta central para gerenciar contatos na GHL. Pode atualizar dados básicos, campos personalizados, adicionar/remover tags, criar notas e inserir em workflows, tudo em uma única chamada. Se locationId/contactId não forem informados, o backend preencherá automaticamente.",
+        parameters: {
+          type: "object",
+          properties: {
+            locationId: { type: "string" },
+            contactId: { type: "string" },
+            updates: {
+              type: "object",
+              description: "Campos para atualizar (firstName, lastName, name, email, phone, businessName/companyName/company, customFields).",
+              properties: {
+                firstName: { type: "string" },
+                lastName: { type: "string" },
+                name: { type: "string" },
+                email: { type: "string" },
+                phone: { type: "string" },
+                businessName: { type: "string" },
+                companyName: { type: "string" },
+                company: { type: "string" },
+                customFields: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: { type: "string", description: "O ID único do campo" },
+                      field_value: { type: "string", description: "O valor a ser gravado" }
+                    },
+                    required: ["id", "field_value"]
                   }
                 }
-              },
-              tags: { type: "array", items: { type: "string" } },
-              removeTags: { type: "array", items: { type: "string" } },
-              notes: { type: "array", items: { type: "string" } },
-              workflowId: { type: "string" }
+              }
             },
-            required: []
-          }
-        },
-        {
-          name: "ghl_get_conversation",
-          description: "Obtém os detalhes técnicos de uma conversa específica (status, participantes, etc). Se locationId/conversationId não forem informados, o backend preencherá automaticamente.",
-          parameters: {
-            type: "object",
-            properties: {
-              locationId: { type: "string" },
-              conversationId: { type: "string" }
-            },
-            required: []
-          }
-        },
-        {
-          name: "ghl_get_contact",
-          description: "Obtém os detalhes do contato na GoHighLevel (inclui campos e custom fields). Se locationId/contactId não forem informados, o backend preencherá automaticamente.",
-          parameters: {
-            type: "object",
-            properties: {
-              locationId: { type: "string" },
-              contactId: { type: "string" }
-            },
-            required: []
-          }
+            tags: { type: "array", items: { type: "string" } },
+            removeTags: { type: "array", items: { type: "string" } },
+            notes: { type: "array", items: { type: "string" } },
+            workflowId: { type: "string" }
+          },
+          required: []
         }
-      ]
-    }];
+      },
+      {
+        name: "ghl_get_conversation",
+        description: "Obtém os detalhes técnicos de uma conversa específica (status, participantes, etc). Se locationId/conversationId não forem informados, o backend preencherá automaticamente.",
+        parameters: {
+          type: "object",
+          properties: {
+            locationId: { type: "string" },
+            conversationId: { type: "string" }
+          },
+          required: []
+        }
+      },
+      {
+        name: "ghl_get_contact",
+        description: "Obtém os detalhes do contato na GoHighLevel (inclui campos e custom fields). Se locationId/contactId não forem informados, o backend preencherá automaticamente.",
+        parameters: {
+          type: "object",
+          properties: {
+            locationId: { type: "string" },
+            contactId: { type: "string" }
+          },
+          required: []
+        }
+      }
+    ];
+
+    // Carrega agent_actions ativas e gera function_declarations dinamicas
+    const supabaseClient = createClient(SB_URL, SB_KEY);
+    const agentActions = await loadActiveActions(supabaseClient, first.agent_id);
+    const tools = buildToolsFromActions(agentActions, BASE_DECLARATIONS);
+    const actionCtx: ActionContext = {
+      supabaseClient,
+      locationId: first.location_id,
+      contactId: first.contact_id,
+      conversationId: first.conversation_id,
+      agentId: first.agent_id,
+    };
 
     const TOOL_MAP: Record<string, string> = {
       "ghl_get_custom_fields": "ghl-get-custom-fields",
@@ -550,40 +569,55 @@ async function runBatch(batchId: string) {
         const call = part.functionCall;
         contents.push(candidate.content);
 
-        const fnSlug = TOOL_MAP[call.name];
         const callArgs: Record<string, any> = call?.args && typeof call.args === "object" ? call.args : {};
-          const autofilled: string[] = [];
-        if (call.name === "ghl_manage_contact") {
-            if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
-            if (!callArgs.contactId) { callArgs.contactId = first.contact_id; autofilled.push("contactId"); }
-        } else if (call.name === "ghl_get_custom_fields") {
-            if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
-        } else if (call.name === "ghl_get_conversation") {
-            if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
-            if (!callArgs.conversationId) { callArgs.conversationId = first.conversation_id; autofilled.push("conversationId"); }
-        } else if (call.name === "ghl_get_contact") {
-            if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
-            if (!callArgs.contactId) { callArgs.contactId = first.contact_id; autofilled.push("contactId"); }
-        }
-          debugSources.push({ at: nowIso(), source: "decision_trace", step: "tool_autofill", tool: call.name, autofilled });
         let toolResult;
-        
-        if (fnSlug) {
+
+        // 1. Tenta primeiro como agent_action dinamica (function name = action_${actionId})
+        const isAgentAction = agentActions.some((a) => fnNameForAction(a) === call.name);
+        if (isAgentAction) {
           try {
-            const fnRes = await fetch(`${SB_URL}/functions/v1/${fnSlug}`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SB_KEY}` },
-              body: JSON.stringify(callArgs)
-            });
-            toolResult = await fnRes.json();
-              debugSources.push({ at: nowIso(), source: "tool_call", name: call.name, ok: fnRes.ok, status: fnRes.status });
+            const result = await tryExecuteAgentAction(call.name, callArgs, agentActions, actionCtx);
+            toolResult = result ?? { error: "Action not found" };
+            debugSources.push({ at: nowIso(), source: "agent_action", name: call.name, ok: !!toolResult?.success });
           } catch (err: any) {
-            toolResult = { error: `Failed to call tool function: ${err?.message || String(err)}` };
-              debugSources.push({ at: nowIso(), source: "tool_call", name: call.name, ok: false, error: err?.message || String(err) });
+            toolResult = { error: `Failed to execute agent action: ${err?.message || String(err)}` };
+            debugSources.push({ at: nowIso(), source: "agent_action", name: call.name, ok: false, error: err?.message || String(err) });
           }
         } else {
-          toolResult = { error: "Tool not implemented" };
+          // 2. Fallback pro TOOL_MAP estatico (4 tools base)
+          const fnSlug = TOOL_MAP[call.name];
+          const autofilled: string[] = [];
+          if (call.name === "ghl_manage_contact") {
+            if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
+            if (!callArgs.contactId) { callArgs.contactId = first.contact_id; autofilled.push("contactId"); }
+          } else if (call.name === "ghl_get_custom_fields") {
+            if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
+          } else if (call.name === "ghl_get_conversation") {
+            if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
+            if (!callArgs.conversationId) { callArgs.conversationId = first.conversation_id; autofilled.push("conversationId"); }
+          } else if (call.name === "ghl_get_contact") {
+            if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
+            if (!callArgs.contactId) { callArgs.contactId = first.contact_id; autofilled.push("contactId"); }
+          }
+          debugSources.push({ at: nowIso(), source: "decision_trace", step: "tool_autofill", tool: call.name, autofilled });
+
+          if (fnSlug) {
+            try {
+              const fnRes = await fetch(`${SB_URL}/functions/v1/${fnSlug}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SB_KEY}` },
+                body: JSON.stringify(callArgs)
+              });
+              toolResult = await fnRes.json();
+              debugSources.push({ at: nowIso(), source: "tool_call", name: call.name, ok: fnRes.ok, status: fnRes.status });
+            } catch (err: any) {
+              toolResult = { error: `Failed to call tool function: ${err?.message || String(err)}` };
+              debugSources.push({ at: nowIso(), source: "tool_call", name: call.name, ok: false, error: err?.message || String(err) });
+            }
+          } else {
+            toolResult = { error: "Tool not implemented" };
             debugSources.push({ at: nowIso(), source: "tool_call", name: call.name, ok: false, error: "not_implemented" });
+          }
         }
 
         contents.push({
