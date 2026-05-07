@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { formatFieldPath } from '@/lib/agent-action-display';
 import { Plus, X } from 'lucide-react';
 
 export function FieldLabel({
@@ -100,6 +102,17 @@ export function StringArrayInput({
     setDraft('');
   };
 
+  // flushSync garante que o item seja commitado ANTES do click no botao
+  // de submit do form-pai chegar a executar (race entre blur e click).
+  const flushDraftSync = () => {
+    const v = draft.trim();
+    if (!v) return;
+    flushSync(() => {
+      onChange([...values, v]);
+      setDraft('');
+    });
+  };
+
   const removeAt = (idx: number) => {
     onChange(values.filter((_, i) => i !== idx));
   };
@@ -110,6 +123,7 @@ export function StringArrayInput({
         <Input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          onBlur={flushDraftSync}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
@@ -154,11 +168,11 @@ export function FormError({ issues }: { issues: { path: (string | number)[]; mes
 
   return (
     <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm">
-      <p className="text-red-400 font-medium mb-1">Validação falhou:</p>
-      <ul className="text-red-300 text-xs space-y-0.5 list-disc list-inside">
+      <p className="text-red-400 font-medium mb-1">Validacao falhou:</p>
+      <ul className="text-red-300 text-xs space-y-1 list-disc list-inside">
         {issues.map((iss, idx) => (
           <li key={idx}>
-            <span className="font-mono">{iss.path.join('.') || '(root)'}</span>: {iss.message}
+            <span className="font-medium text-red-200">{formatFieldPath(iss.path)}</span>: {iss.message}
           </li>
         ))}
       </ul>

@@ -28,7 +28,7 @@ export const humanHandOverDefaults: HumanHandOverConfig = {
   assignToUserId: '',
   skipAssignToUser: false,
   createTask: false,
-  tags: ['human handover'],
+  tags: [],
   reactivateEnabled: true,
   sleepTime: 8,
   sleepTimeUnit: 'hours',
