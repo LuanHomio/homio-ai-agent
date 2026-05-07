@@ -35,7 +35,7 @@ export function StopBotForm({
 }) {
   return (
     <div className="space-y-4">
-      <FieldGroup>
+      <FieldGroup errorField="stopBotDetectionType">
         <FieldLabel label="Tipo de Deteccao" required />
         <SelectField
           value={value.stopBotDetectionType}
@@ -47,7 +47,7 @@ export function StopBotForm({
         />
       </FieldGroup>
 
-      <FieldGroup>
+      <FieldGroup errorField="stopBotTriggerCondition">
         <FieldLabel
           label="Condicao de Disparo"
           hint="Quando o bot deve parar (10-500 caracteres)"
@@ -61,7 +61,7 @@ export function StopBotForm({
         />
       </FieldGroup>
 
-      <FieldGroup>
+      <FieldGroup errorField="stopBotExamples">
         <FieldLabel label="Exemplos" hint="Mensagens que indicam que o bot deve parar (min 2)" required />
         <StringArrayInput
           values={value.stopBotExamples}
@@ -71,7 +71,7 @@ export function StopBotForm({
         />
       </FieldGroup>
 
-      <FieldGroup>
+      <FieldGroup errorField="finalMessage">
         <FieldLabel label="Mensagem Final" hint="Mensagem de despedida (3-150 caracteres)" required />
         <Input
           value={value.finalMessage}
@@ -95,7 +95,7 @@ export function StopBotForm({
 
       {value.reactivateEnabled && (
         <div className="grid grid-cols-2 gap-3">
-          <FieldGroup>
+          <FieldGroup errorField="sleepTime">
             <FieldLabel label="Tempo de Pausa" required />
             <Input
               type="number"
@@ -104,7 +104,7 @@ export function StopBotForm({
               onChange={(e) => onChange({ ...value, sleepTime: Number(e.target.value) || 0 })}
             />
           </FieldGroup>
-          <FieldGroup>
+          <FieldGroup errorField="sleepTimeUnit">
             <FieldLabel label="Unidade" required />
             <SelectField
               value={value.sleepTimeUnit}

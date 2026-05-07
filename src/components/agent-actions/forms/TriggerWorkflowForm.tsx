@@ -22,7 +22,7 @@ export function TriggerWorkflowForm({
 }) {
   return (
     <div className="space-y-4">
-      <FieldGroup>
+      <FieldGroup errorField="workflowIds">
         <FieldLabel
           label="IDs dos Workflows"
           hint="UUIDs dos workflows do GHL que serao disparados (1 ou mais)"
@@ -36,7 +36,7 @@ export function TriggerWorkflowForm({
         />
       </FieldGroup>
 
-      <FieldGroup>
+      <FieldGroup errorField="triggerCondition">
         <FieldLabel
           label="Condicao de Disparo"
           hint="Texto natural — o LLM decide quando disparar baseado nesta descricao"

@@ -32,7 +32,7 @@ export function AppointmentBookingForm({
 }) {
   return (
     <div className="space-y-4">
-      <FieldGroup>
+      <FieldGroup errorField="calendarId">
         <FieldLabel label="ID do Calendar" hint="ID do calendar do GHL" required />
         <Input
           value={value.calendarId}

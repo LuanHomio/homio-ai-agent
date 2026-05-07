@@ -9,6 +9,7 @@ import { CONFIG_SCHEMAS } from '@/lib/agent-action-schemas';
 import type { ActionType } from '@/lib/types';
 import { Loader2, X } from 'lucide-react';
 import type { AgentActionRow } from './ActionCard';
+import { FormErrorProvider } from './error-context';
 import { FieldGroup, FieldLabel, FormError, SwitchField } from './form-fields';
 import { TriggerWorkflowForm, triggerWorkflowDefaults } from './forms/TriggerWorkflowForm';
 import { UpdateContactFieldForm, updateContactFieldDefaults } from './forms/UpdateContactFieldForm';
@@ -191,8 +192,8 @@ export function ActionFormModal({ isOpen, agentId, editAction, createType, onClo
               <Loader2 className="w-6 h-6 text-homio-purple-300 animate-spin" />
             </div>
           ) : (
-            <>
-              <FieldGroup>
+            <FormErrorProvider issues={issues}>
+              <FieldGroup errorField="name">
                 <FieldLabel label="Nome" hint="3-50 caracteres" required />
                 <Input
                   value={name}
@@ -221,7 +222,7 @@ export function ActionFormModal({ isOpen, agentId, editAction, createType, onClo
               </div>
 
               <FormError issues={issues} />
-            </>
+            </FormErrorProvider>
           )}
         </div>
 

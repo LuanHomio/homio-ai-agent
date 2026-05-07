@@ -28,7 +28,7 @@ export const humanHandOverDefaults: HumanHandOverConfig = {
   assignToUserId: '',
   skipAssignToUser: false,
   createTask: false,
-  tags: [],
+  tags: ['human handover'],
   reactivateEnabled: true,
   sleepTime: 8,
   sleepTimeUnit: 'hours',
@@ -43,7 +43,7 @@ export function HumanHandOverForm({
 }) {
   return (
     <div className="space-y-4">
-      <FieldGroup>
+      <FieldGroup errorField="handoverType">
         <FieldLabel label="Tipo de Handover" required />
         <SelectField
           value={value.handoverType}
@@ -57,7 +57,7 @@ export function HumanHandOverForm({
         />
       </FieldGroup>
 
-      <FieldGroup>
+      <FieldGroup errorField="triggerCondition">
         <FieldLabel
           label="Condicao de Disparo"
           hint="Quando transferir para humano (10-500 caracteres)"
@@ -71,7 +71,7 @@ export function HumanHandOverForm({
         />
       </FieldGroup>
 
-      <FieldGroup>
+      <FieldGroup errorField="examples">
         <FieldLabel label="Exemplos" hint="Mensagens que indicam pedido de humano (min 1)" required />
         <StringArrayInput
           values={value.examples}
@@ -81,7 +81,7 @@ export function HumanHandOverForm({
         />
       </FieldGroup>
 
-      <FieldGroup>
+      <FieldGroup errorField="finalMessage">
         <FieldLabel
           label="Mensagem Final"
           hint="Mensagem ao contato no momento do handover"
@@ -94,7 +94,7 @@ export function HumanHandOverForm({
         />
       </FieldGroup>
 
-      <FieldGroup>
+      <FieldGroup errorField="assignToUserId">
         <FieldLabel
           label="ID do Usuario Designado"
           hint="ID do usuario GHL a quem atribuir a conversa/task"
@@ -107,7 +107,7 @@ export function HumanHandOverForm({
         />
       </FieldGroup>
 
-      <FieldGroup>
+      <FieldGroup errorField="tags">
         <FieldLabel label="Tags a adicionar no contato" />
         <StringArrayInput
           values={value.tags}
@@ -142,7 +142,7 @@ export function HumanHandOverForm({
 
       {value.reactivateEnabled && (
         <div className="grid grid-cols-2 gap-3">
-          <FieldGroup>
+          <FieldGroup errorField="sleepTime">
             <FieldLabel label="Tempo de Pausa" required />
             <Input
               type="number"
@@ -151,7 +151,7 @@ export function HumanHandOverForm({
               onChange={(e) => onChange({ ...value, sleepTime: Number(e.target.value) || 0 })}
             />
           </FieldGroup>
-          <FieldGroup>
+          <FieldGroup errorField="sleepTimeUnit">
             <FieldLabel label="Unidade" required />
             <SelectField
               value={value.sleepTimeUnit}

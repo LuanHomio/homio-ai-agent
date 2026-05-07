@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { formatFieldPath } from '@/lib/agent-action-display';
 import { Plus, X } from 'lucide-react';
+import { useFieldError } from './error-context';
 
 export function FieldLabel({
   label,
@@ -27,7 +28,19 @@ export function FieldLabel({
   );
 }
 
-export function FieldGroup({ children }: { children: ReactNode }) {
+export function FieldGroup({ children, errorField }: { children: ReactNode; errorField?: string }) {
+  const error = useFieldError(errorField);
+  if (error) {
+    return (
+      <div className="rounded-lg border-2 border-red-500/70 bg-red-500/5 -mx-2 px-2 py-2 space-y-1">
+        {children}
+        <p className="text-xs text-red-300 mt-1 flex items-start gap-1">
+          <span className="text-red-400">⚠</span>
+          <span>{error}</span>
+        </p>
+      </div>
+    );
+  }
   return <div className="space-y-1">{children}</div>;
 }
 

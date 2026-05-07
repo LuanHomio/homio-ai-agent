@@ -59,7 +59,7 @@ export function AdvancedFollowupForm({
 
   return (
     <div className="space-y-4">
-      <FieldGroup>
+      <FieldGroup errorField="scenarioId">
         <FieldLabel label="Cenario" required />
         <SelectField
           value={value.scenarioId}
@@ -78,7 +78,7 @@ export function AdvancedFollowupForm({
         onChange={(v) => onChange({ ...value, enabled: v })}
       />
 
-      <FieldGroup>
+      <FieldGroup errorField="followupSequence">
         <FieldLabel
           label="Sequencia de Follow-ups"
           hint="Maximo 5 etapas. Cada etapa dispara apos o tempo definido"

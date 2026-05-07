@@ -25,7 +25,7 @@ export function UpdateContactFieldForm({
 }) {
   return (
     <div className="space-y-4">
-      <FieldGroup>
+      <FieldGroup errorField="contactFieldId">
         <FieldLabel
           label="ID do Custom Field"
           hint="ID do campo customizado do contato no GHL"
@@ -38,7 +38,7 @@ export function UpdateContactFieldForm({
         />
       </FieldGroup>
 
-      <FieldGroup>
+      <FieldGroup errorField="description">
         <FieldLabel
           label="Descricao do que coletar"
           hint="O que o bot deve perguntar/coletar (1-500 caracteres)"
@@ -52,7 +52,7 @@ export function UpdateContactFieldForm({
         />
       </FieldGroup>
 
-      <FieldGroup>
+      <FieldGroup errorField="contactUpdateExamples">
         <FieldLabel
           label="Exemplos (opcional)"
           hint="Exemplos de respostas validas — obrigatorio pra dataType=TEXT no GHL"

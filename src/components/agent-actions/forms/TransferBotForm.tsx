@@ -29,7 +29,7 @@ export function TransferBotForm({
 }) {
   return (
     <div className="space-y-4">
-      <FieldGroup>
+      <FieldGroup errorField="transferBotType">
         <FieldLabel label="Tipo de Transferencia" required />
         <SelectField
           value={value.transferBotType}
@@ -41,7 +41,7 @@ export function TransferBotForm({
         />
       </FieldGroup>
 
-      <FieldGroup>
+      <FieldGroup errorField="transferToBot">
         <FieldLabel label="ID do Agent Destino" hint="ID do agent (GHL) que vai receber a conversa" required />
         <Input
           value={value.transferToBot}
@@ -50,7 +50,7 @@ export function TransferBotForm({
         />
       </FieldGroup>
 
-      <FieldGroup>
+      <FieldGroup errorField="transferBotTriggerCondition">
         <FieldLabel
           label="Condicao de Disparo"
           hint="Quando transferir (10-500 caracteres)"
@@ -64,7 +64,7 @@ export function TransferBotForm({
         />
       </FieldGroup>
 
-      <FieldGroup>
+      <FieldGroup errorField="transferBotExamples">
         <FieldLabel label="Exemplos" hint="Mensagens que indicam transferencia (min 2)" required />
         <StringArrayInput
           values={value.transferBotExamples}
