@@ -51,7 +51,7 @@ export const ACTION_TYPE_META: Record<ActionType, ActionTypeMeta> = {
   },
   advancedFollowup: {
     type: 'advancedFollowup',
-    label: 'Follow-up Avançado',
+    label: 'Follow-up',
     description: 'Sequência de mensagens quando contato pára de responder',
     icon: Clock,
   },

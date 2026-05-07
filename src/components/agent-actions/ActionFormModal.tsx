@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -55,31 +55,61 @@ export function ActionFormModal({ isOpen, agentId, editAction, createType, onClo
   const [busy, setBusy] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(false);
 
-  // Reset state when modal opens / target changes
-  useEffect(() => {
-    if (!isOpen || !actionType) return;
-    setIssues(null);
+  // Sincroniza state com o "alvo" (edit:id ou create:type) DURANTE o render
+  // pra evitar config drift quando actionType muda mas config velho ainda
+  // chega no <ConfigForm> do tipo novo (useEffect roda tarde demais).
+  const targetKey = isOpen
+    ? isEdit && editAction
+      ? `edit:${editAction.id}`
+      : createType
+        ? `create:${createType}`
+        : null
+    : null;
+  const prevTargetKey = useRef<string | null>(null);
 
-    if (isEdit) {
-      // Hidrata config do servidor (lista nao traz config)
+  if (prevTargetKey.current !== targetKey) {
+    prevTargetKey.current = targetKey;
+    setIssues(null);
+    if (!actionType) {
+      setConfig(null);
+      setLoadingExisting(false);
+    } else if (isEdit && editAction) {
+      setName(editAction.name);
+      setDescription(editAction.description ?? '');
+      setIsActive(editAction.is_active);
+      setConfig(CONFIG_DEFAULTS[actionType]);
       setLoadingExisting(true);
-      setName(editAction!.name);
-      setDescription(editAction!.description ?? '');
-      setIsActive(editAction!.is_active);
-      fetch(`/api/agents/${agentId}/actions/${editAction!.id}`)
-        .then((r) => r.json())
-        .then((row) => {
-          setConfig(row.config ?? CONFIG_DEFAULTS[actionType]);
-        })
-        .catch(() => setConfig(CONFIG_DEFAULTS[actionType]))
-        .finally(() => setLoadingExisting(false));
-    } else {
+    } else if (createType) {
       setName('');
       setDescription('');
       setIsActive(true);
       setConfig(CONFIG_DEFAULTS[actionType]);
+      setLoadingExisting(false);
     }
-  }, [isOpen, actionType, isEdit, editAction, agentId]);
+  }
+
+  // Fetch async do config persistido (so em edit). Sobrescreve o default hidratado acima.
+  useEffect(() => {
+    if (!isOpen || !isEdit || !editAction || !actionType) return;
+    let cancelled = false;
+    fetch(`/api/agents/${agentId}/actions/${editAction.id}`)
+      .then((r) => r.json())
+      .then((row) => {
+        if (cancelled) return;
+        setConfig(row.config ?? CONFIG_DEFAULTS[actionType]);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setConfig(CONFIG_DEFAULTS[actionType]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoadingExisting(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, isEdit, editAction?.id, agentId, actionType]);
 
   const meta = useMemo(() => (actionType ? ACTION_TYPE_META[actionType] : null), [actionType]);
 
