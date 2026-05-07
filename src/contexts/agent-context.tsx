@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import type { Agent, UpdateAgentRequest } from '@/lib/types';
 import { promptToMarkdown } from '@/lib/prompt-formatter';
+import { DangerConfirmModal } from '@/components/ui/danger-confirm-modal';
 
 type MessageType = 'success' | 'error' | 'warning' | 'info';
 
@@ -40,6 +41,8 @@ export function AgentProvider({
   const router = useRouter();
   const [agent, setAgentState] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const setAgent = (updater: (prev: Agent | null) => Agent | null) => {
     setAgentState(updater);
@@ -108,19 +111,25 @@ export function AgentProvider({
     }
   };
 
+  // Abre o modal de confirmacao destrutiva. A delecao real acontece em
+  // performDelete() quando o usuario digita o nome e confirma.
   const deleteAgent = async () => {
-    if (!confirm('Tem certeza que deseja excluir este agent?')) return;
-    setLoading(true);
+    setConfirmingDelete(true);
+  };
+
+  const performDelete = async () => {
+    setDeleting(true);
     try {
       const response = await fetch(`/api/agents/${agentId}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Failed to delete agent');
-      showMessage('success', 'Agent excluído com sucesso!');
+      toast.success('Agent excluído com sucesso!');
+      setConfirmingDelete(false);
       router.push(`/?locationId=${locationId}`);
     } catch (error) {
       console.error('Error deleting agent:', error);
-      showMessage('error', 'Erro ao excluir agent');
+      toast.error(error instanceof Error ? error.message : 'Erro ao excluir agent');
     } finally {
-      setLoading(false);
+      setDeleting(false);
     }
   };
 
@@ -144,6 +153,33 @@ export function AgentProvider({
       }}
     >
       {children}
+
+      <DangerConfirmModal
+        isOpen={confirmingDelete}
+        onClose={() => !deleting && setConfirmingDelete(false)}
+        onConfirm={performDelete}
+        busy={deleting}
+        title={agent ? `Excluir agente "${agent.name}"` : 'Excluir agente'}
+        confirmPhrase={agent?.name ?? ''}
+        confirmButtonText="Excluir definitivamente"
+        description={
+          <div className="space-y-3">
+            <p>
+              Você está prestes a excluir <strong>permanentemente</strong> este agente. Os seguintes dados
+              serão removidos junto:
+            </p>
+            <ul className="list-disc list-inside text-sm text-foreground/80 space-y-1 pl-1">
+              <li>Todas as bases de conhecimento e fontes vinculadas</li>
+              <li>Todas as ações configuradas (workflows, follow-ups, handover etc)</li>
+              <li>Histórico de conversas que dependiam deste agent</li>
+              <li>Configuração de prompt, personalidade e objetivos</li>
+            </ul>
+            <p className="text-red-300 font-medium">
+              Esta operação não pode ser desfeita.
+            </p>
+          </div>
+        }
+      />
     </AgentContext.Provider>
   );
 }
