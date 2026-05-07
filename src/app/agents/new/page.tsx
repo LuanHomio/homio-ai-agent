@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip } from '@/components/ui/tooltip';
-import { MultiSelect, MultiSelectOption } from '@/components/ui/multi-select';
-import { Agent, CreateAgentRequest, KnowledgeBase } from '@/lib/types';
-import { Settings, MessageSquare, BookOpen, ArrowLeft, Loader2 } from 'lucide-react';
+import { MultiSelect } from '@/components/ui/multi-select';
+import { CreateAgentRequest, KnowledgeBase } from '@/lib/types';
+import { Settings, MessageSquare, BookOpen, Loader2, Check } from 'lucide-react';
 
 export default function NewAgentPage() {
   const router = useRouter();
@@ -17,7 +18,6 @@ export default function NewAgentPage() {
 
   const [activeTab, setActiveTab] = useState('configuracoes');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [agent, setAgent] = useState<CreateAgentRequest>({
     location_id: locationId,
@@ -34,13 +34,6 @@ export default function NewAgentPage() {
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<string[]>([]);
 
-  const messageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const showMessage = (type: 'success' | 'error', text: string) => {
-    if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
-    setMessage({ type, text });
-    messageTimeoutRef.current = setTimeout(() => setMessage(null), 5000);
-  };
-
   const fetchKnowledgeBases = async () => {
     try {
       const response = await fetch(`/api/knowledge-bases?location_id=${locationId}`);
@@ -51,13 +44,13 @@ export default function NewAgentPage() {
       setKnowledgeBases(data);
     } catch (error) {
       console.error('Error fetching knowledge bases:', error);
-      showMessage('error', 'Erro ao carregar bases de conhecimento');
+      toast.error('Erro ao carregar bases de conhecimento');
     }
   };
 
   const createAgent = async () => {
-    if (!agent.name) {
-      showMessage('error', 'Nome do agent é obrigatório');
+    if (!agent.name.trim()) {
+      toast.error('Nome do agent é obrigatório');
       return;
     }
 
@@ -76,7 +69,6 @@ export default function NewAgentPage() {
 
       const createdAgent = await response.json();
 
-      // Update knowledge bases if any are selected
       if (selectedKnowledgeBases.length > 0) {
         const kbResponse = await fetch(`/api/agents/${createdAgent.id}/knowledge-bases`, {
           method: 'PUT',
@@ -89,13 +81,11 @@ export default function NewAgentPage() {
         }
       }
 
-      showMessage('success', 'Agent criado com sucesso!');
-
-      // Redirect to agent edit page
+      toast.success('Agent criado com sucesso!');
       router.push(`/agents/${createdAgent.id}?locationId=${locationId}`);
     } catch (error) {
       console.error('Error creating agent:', error);
-      showMessage('error', error instanceof Error ? error.message : 'Erro ao criar agent');
+      toast.error(error instanceof Error ? error.message : 'Erro ao criar agent');
     } finally {
       setLoading(false);
     }
@@ -114,52 +104,36 @@ export default function NewAgentPage() {
     { id: 'conhecimento', label: 'Base de Conhecimento', icon: BookOpen, description: 'Fontes e FAQs' }
   ];
 
+  const isReady = agent.name.trim().length > 0;
+
   return (
-    <div className="min-h-screen bg-background dark animate-fade-in">
-      {/* Header Section */}
-      <div className="bg-card border-b border-border animate-slide-up">
-        <div className="max-w-7xl mx-auto px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">
-                {agent.name || 'Novo Agent'}
-              </h1>
-              <p className="text-muted-foreground">
-                Configure seu agent de IA para automatizar conversas
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => router.back()}
-                className="bg-secondary border-border text-muted-foreground hover:bg-secondary/80"
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={createAgent}
-                disabled={loading || !agent.name}
-                className="bg-gradient-to-r from-homio-purple-600 to-homio-purple-500 hover:from-homio-purple-500 hover:to-homio-purple-400 shadow-lg shadow-homio-purple-500/20 text-white"
-              >
-                {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Criando...</> : 'Criar Agent'}
-              </Button>
-            </div>
+    <div className="min-h-screen bg-background dark animate-fade-in flex flex-col">
+      {/* Header sticky top — info do agent + indicador de pronto */}
+      <div className="bg-card border-b border-border sticky top-0 z-30 backdrop-blur-md bg-card/95 shadow-sm animate-slide-up">
+        <div className="max-w-7xl mx-auto px-8 py-5">
+          <div className="flex items-center gap-3 min-w-0">
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground truncate">
+              {agent.name || 'Novo Agent'}
+            </h1>
+            {isReady ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/15 text-emerald-300 text-xs rounded-md flex-shrink-0">
+                <Check className="w-3 h-3" />
+                Pronto pra criar
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-2 py-0.5 bg-amber-500/15 text-amber-300 text-xs rounded-md flex-shrink-0">
+                Falta o nome
+              </span>
+            )}
           </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            Configure seu agent de IA para automatizar conversas
+          </p>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto p-8">
-        {message && (
-          <div className={`p-4 rounded-md mb-6 ${
-            message.type === 'success'
-              ? 'bg-green-900/30 text-green-400 border border-green-800'
-              : 'bg-red-900/30 text-red-400 border border-red-800'
-          }`}>
-            {message.text}
-          </div>
-        )}
-
+      {/* Main Content (flex-1 pra empurrar o footer pra baixo) */}
+      <div className="max-w-7xl mx-auto p-8 flex-1 w-full pb-32">
         {/* Bot Details Section */}
         <div className="bg-card rounded-lg p-6 border border-border mb-6 animate-slide-up-delay-1">
           <div className="flex justify-between items-start mb-4">
@@ -404,6 +378,36 @@ export default function NewAgentPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer sticky bottom — botoes sempre visiveis */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-card/95 backdrop-blur-md border-t border-border shadow-lg">
+        <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between gap-4">
+          <p className="text-xs text-muted-foreground hidden sm:block">
+            {isReady
+              ? '✓ Tudo pronto. Você pode criar o agent agora.'
+              : '⚠ Preencha o nome do agent (na seção Detalhes acima) pra liberar o botão.'}
+          </p>
+          <div className="flex gap-2 ml-auto">
+            <Button variant="outline" onClick={() => router.back()} disabled={loading}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={createAgent}
+              disabled={loading || !isReady}
+              className="bg-gradient-to-r from-homio-purple-600 to-homio-purple-500 hover:from-homio-purple-500 hover:to-homio-purple-400 shadow-lg shadow-homio-purple-500/20 text-white min-w-[140px]"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Criando...
+                </>
+              ) : (
+                'Criar Agent'
+              )}
+            </Button>
           </div>
         </div>
       </div>
