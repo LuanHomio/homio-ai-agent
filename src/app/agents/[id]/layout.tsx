@@ -21,6 +21,7 @@ function HeaderAndTabs({ children }: { children: React.ReactNode }) {
 
   const qs = searchParams.toString();
   const buildHref = (slug: string) => `/agents/${agentId}/${slug}${qs ? `?${qs}` : ''}`;
+  const backHref = locationId ? `/agents/${locationId}${qs ? `?${qs}` : ''}` : `/agents/${agentId}`;
   const activeSlug = TABS.find((t) => pathname.endsWith(`/${t.slug}`))?.slug ?? 'general';
 
   if (!agent) {
@@ -44,7 +45,7 @@ function HeaderAndTabs({ children }: { children: React.ReactNode }) {
               <p className="text-muted-foreground">Configure seu agent de IA para automatizar conversas</p>
             </div>
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => router.back()}>
+              <Button variant="outline" onClick={() => router.push(backHref)}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Voltar
               </Button>
@@ -102,6 +103,7 @@ function HeaderAndTabs({ children }: { children: React.ReactNode }) {
                   <Link
                     key={tab.slug}
                     href={buildHref(tab.slug)}
+                    replace
                     scroll={false}
                     className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                       isActive
