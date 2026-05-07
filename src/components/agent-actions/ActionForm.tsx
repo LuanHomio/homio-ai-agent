@@ -1,13 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ACTION_TYPE_META } from '@/lib/agent-action-display';
 import { CONFIG_SCHEMAS } from '@/lib/agent-action-schemas';
 import type { ActionType } from '@/lib/types';
-import { Loader2, X } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import type { AgentActionRow } from './ActionCard';
 import { FormErrorProvider } from './error-context';
 import { FieldGroup, FieldLabel, FormError, SwitchField } from './form-fields';
@@ -34,19 +33,16 @@ type SaveResult =
   | { ok: false; status: number; error: { message?: string; issues?: { path: (string | number)[]; message: string }[] } };
 
 export interface Props {
-  isOpen: boolean;
   agentId: string;
-  /** When provided, the form opens in edit mode for this action. */
+  actionType: ActionType;
+  /** Quando null = criar nova; senao = editar essa action */
   editAction: AgentActionRow | null;
-  /** When creating, the user-selected type. Ignored in edit mode. */
-  createType: ActionType | null;
-  onClose: () => void;
   onSaved: (saved: AgentActionRow) => void;
+  onCancel: () => void;
 }
 
-export function ActionFormModal({ isOpen, agentId, editAction, createType, onClose, onSaved }: Props) {
+export function ActionForm({ agentId, actionType, editAction, onSaved, onCancel }: Props) {
   const isEdit = editAction !== null;
-  const actionType: ActionType | null = isEdit ? (editAction!.action_type as ActionType) : createType;
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -57,30 +53,20 @@ export function ActionFormModal({ isOpen, agentId, editAction, createType, onClo
   const [loadingExisting, setLoadingExisting] = useState(false);
 
   // Sincroniza state com o "alvo" (edit:id ou create:type) DURANTE o render
-  // pra evitar config drift quando actionType muda mas config velho ainda
-  // chega no <ConfigForm> do tipo novo (useEffect roda tarde demais).
-  const targetKey = isOpen
-    ? isEdit && editAction
-      ? `edit:${editAction.id}`
-      : createType
-        ? `create:${createType}`
-        : null
-    : null;
+  // pra evitar config drift quando actionType/editAction mudam.
+  const targetKey = isEdit && editAction ? `edit:${editAction.id}` : `create:${actionType}`;
   const prevTargetKey = useRef<string | null>(null);
 
   if (prevTargetKey.current !== targetKey) {
     prevTargetKey.current = targetKey;
     setIssues(null);
-    if (!actionType) {
-      setConfig(null);
-      setLoadingExisting(false);
-    } else if (isEdit && editAction) {
+    if (isEdit && editAction) {
       setName(editAction.name);
       setDescription(editAction.description ?? '');
       setIsActive(editAction.is_active);
       setConfig(CONFIG_DEFAULTS[actionType]);
       setLoadingExisting(true);
-    } else if (createType) {
+    } else {
       setName('');
       setDescription('');
       setIsActive(true);
@@ -91,7 +77,7 @@ export function ActionFormModal({ isOpen, agentId, editAction, createType, onClo
 
   // Fetch async do config persistido (so em edit). Sobrescreve o default hidratado acima.
   useEffect(() => {
-    if (!isOpen || !isEdit || !editAction || !actionType) return;
+    if (!isEdit || !editAction) return;
     let cancelled = false;
     fetch(`/api/agents/${agentId}/actions/${editAction.id}`)
       .then((r) => r.json())
@@ -110,16 +96,11 @@ export function ActionFormModal({ isOpen, agentId, editAction, createType, onClo
     return () => {
       cancelled = true;
     };
-  }, [isOpen, isEdit, editAction?.id, agentId, actionType]);
-
-  const meta = useMemo(() => (actionType ? ACTION_TYPE_META[actionType] : null), [actionType]);
-
-  if (!isOpen || !actionType || !meta) return null;
+  }, [isEdit, editAction?.id, agentId, actionType]);
 
   const handleSave = async () => {
     setIssues(null);
 
-    // Client-side validation against the same schema the server uses
     const schema = CONFIG_SCHEMAS[actionType];
     const cfgParse = schema.safeParse(config);
     if (!cfgParse.success) {
@@ -154,7 +135,6 @@ export function ActionFormModal({ isOpen, agentId, editAction, createType, onClo
       }
 
       onSaved(result.data);
-      onClose();
     } catch (e) {
       setIssues([{ path: [], message: e instanceof Error ? e.message : 'Erro inesperado' }]);
     } finally {
@@ -162,91 +142,70 @@ export function ActionFormModal({ isOpen, agentId, editAction, createType, onClo
     }
   };
 
-  const Icon = meta.icon;
+  if (loadingExisting) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-6 h-6 text-homio-purple-300 animate-spin" />
+      </div>
+    );
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={busy ? undefined : onClose} />
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <FormErrorProvider issues={issues}>
+          <FieldGroup errorField="name">
+            <FieldLabel label="Nome" hint="3-50 caracteres" required />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex: qualified-lead-followup"
+              maxLength={50}
+            />
+          </FieldGroup>
 
-      <div className="relative bg-card border border-border rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-border">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 bg-homio-purple-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Icon className="w-5 h-5 text-homio-purple-300" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-lg font-semibold text-foreground truncate">
-                {isEdit ? 'Editar Ação' : 'Nova Ação'}: {meta.label}
-              </h2>
-              <p className="text-xs text-muted-foreground truncate">{meta.description}</p>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" onClick={onClose} disabled={busy}>
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
+          <FieldGroup>
+            <FieldLabel label="Descrição (opcional)" />
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Descrição livre — ajuda você a lembrar o propósito da ação"
+              rows={2}
+            />
+          </FieldGroup>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          {loadingExisting ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 text-homio-purple-300 animate-spin" />
-            </div>
-          ) : (
-            <FormErrorProvider issues={issues}>
-              <FieldGroup errorField="name">
-                <FieldLabel label="Nome" hint="3-50 caracteres" required />
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ex: qualified-lead-followup"
-                  maxLength={50}
-                />
-              </FieldGroup>
+          <SwitchField label="Ação ativa" checked={isActive} onChange={setIsActive} />
 
-              <FieldGroup>
-                <FieldLabel label="Descrição (opcional)" />
-                <Textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Descrição livre — ajuda você a lembrar o propósito da ação"
-                  rows={2}
-                />
-              </FieldGroup>
-
-              <SwitchField label="Ação ativa" checked={isActive} onChange={setIsActive} />
-
-              <div className="border-t border-border pt-5">
-                {config !== null && (
-                  <ConfigForm actionType={actionType} value={config} onChange={setConfig} />
-                )}
-              </div>
-
-              <FormError issues={issues} />
-            </FormErrorProvider>
-          )}
-        </div>
-
-        <div className="flex items-center justify-end gap-2 p-6 border-t border-border">
-          <Button variant="outline" onClick={onClose} disabled={busy}>
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={busy || loadingExisting || config === null}
-            className="bg-gradient-to-r from-homio-purple-600 to-homio-purple-500 hover:from-homio-purple-500 hover:to-homio-purple-400 shadow-lg shadow-homio-purple-500/20"
-          >
-            {busy ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Salvando...
-              </>
-            ) : isEdit ? (
-              'Salvar'
-            ) : (
-              'Criar Ação'
+          <div className="border-t border-border pt-5">
+            {config !== null && (
+              <ConfigForm actionType={actionType} value={config} onChange={setConfig} />
             )}
-          </Button>
-        </div>
+          </div>
+
+          <FormError issues={issues} />
+        </FormErrorProvider>
+      </div>
+
+      <div className="flex items-center justify-end gap-2 p-6 border-t border-border">
+        <Button variant="outline" onClick={onCancel} disabled={busy}>
+          Cancelar
+        </Button>
+        <Button
+          onClick={handleSave}
+          disabled={busy || config === null}
+          className="bg-gradient-to-r from-homio-purple-600 to-homio-purple-500 hover:from-homio-purple-500 hover:to-homio-purple-400 shadow-lg shadow-homio-purple-500/20"
+        >
+          {busy ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Salvando...
+            </>
+          ) : isEdit ? (
+            'Salvar'
+          ) : (
+            'Criar Ação'
+          )}
+        </Button>
       </div>
     </div>
   );
