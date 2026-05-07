@@ -9,7 +9,7 @@ import { ACTION_TYPES, type ActionType } from '@/lib/types';
 import { Loader2, Zap } from 'lucide-react';
 
 export default function ActionsTabPage() {
-  const { agentId, showMessage } = useAgent();
+  const { agentId, locationId, showMessage } = useAgent();
 
   const [actions, setActions] = useState<AgentActionRow[]>([]);
   const [fetching, setFetching] = useState(true);
@@ -88,6 +88,7 @@ export default function ActionsTabPage() {
       <ActionTypePanel
         isOpen={openType !== null}
         agentId={agentId}
+        locationId={locationId}
         actionType={openType}
         actionsOfType={actionsOfOpenType}
         onClose={() => setOpenType(null)}

@@ -34,6 +34,7 @@ type SaveResult =
 
 export interface Props {
   agentId: string;
+  locationId: string;
   actionType: ActionType;
   /** Quando null = criar nova; senao = editar essa action */
   editAction: AgentActionRow | null;
@@ -41,7 +42,7 @@ export interface Props {
   onCancel: () => void;
 }
 
-export function ActionForm({ agentId, actionType, editAction, onSaved, onCancel }: Props) {
+export function ActionForm({ agentId, locationId, actionType, editAction, onSaved, onCancel }: Props) {
   const isEdit = editAction !== null;
 
   const [name, setName] = useState('');
@@ -178,7 +179,13 @@ export function ActionForm({ agentId, actionType, editAction, onSaved, onCancel 
 
           <div className="border-t border-border pt-5">
             {config !== null && (
-              <ConfigForm actionType={actionType} value={config} onChange={setConfig} />
+              <ConfigForm
+                actionType={actionType}
+                value={config}
+                onChange={setConfig}
+                locationId={locationId}
+                agentId={agentId}
+              />
             )}
           </div>
 
@@ -215,26 +222,37 @@ function ConfigForm({
   actionType,
   value,
   onChange,
+  locationId,
+  agentId,
 }: {
   actionType: ActionType;
   value: any;
   onChange: (v: any) => void;
+  locationId: string;
+  agentId: string;
 }) {
   switch (actionType) {
     case 'triggerWorkflow':
-      return <TriggerWorkflowForm value={value} onChange={onChange} />;
+      return <TriggerWorkflowForm value={value} onChange={onChange} locationId={locationId} />;
     case 'updateContactField':
-      return <UpdateContactFieldForm value={value} onChange={onChange} />;
+      return <UpdateContactFieldForm value={value} onChange={onChange} locationId={locationId} />;
     case 'appointmentBooking':
-      return <AppointmentBookingForm value={value} onChange={onChange} />;
+      return <AppointmentBookingForm value={value} onChange={onChange} locationId={locationId} />;
     case 'stopBot':
       return <StopBotForm value={value} onChange={onChange} />;
     case 'humanHandOver':
-      return <HumanHandOverForm value={value} onChange={onChange} />;
+      return <HumanHandOverForm value={value} onChange={onChange} locationId={locationId} />;
     case 'advancedFollowup':
       return <AdvancedFollowupForm value={value} onChange={onChange} />;
     case 'transferBot':
-      return <TransferBotForm value={value} onChange={onChange} />;
+      return (
+        <TransferBotForm
+          value={value}
+          onChange={onChange}
+          locationId={locationId}
+          currentAgentId={agentId}
+        />
+      );
   }
 }
 
