@@ -17,6 +17,8 @@ import { StopBotForm, stopBotDefaults } from './forms/StopBotForm';
 import { HumanHandOverForm, humanHandOverDefaults } from './forms/HumanHandOverForm';
 import { AdvancedFollowupForm, advancedFollowupDefaults } from './forms/AdvancedFollowupForm';
 import { TransferBotForm, transferBotDefaults } from './forms/TransferBotForm';
+import { CreateOpportunityForm, createOpportunityDefaults } from './forms/CreateOpportunityForm';
+import { UpdateOpportunityForm, updateOpportunityDefaults } from './forms/UpdateOpportunityForm';
 
 const CONFIG_DEFAULTS: Record<ActionType, unknown> = {
   triggerWorkflow: triggerWorkflowDefaults,
@@ -26,6 +28,8 @@ const CONFIG_DEFAULTS: Record<ActionType, unknown> = {
   humanHandOver: humanHandOverDefaults,
   advancedFollowup: advancedFollowupDefaults,
   transferBot: transferBotDefaults,
+  createOpportunity: createOpportunityDefaults,
+  updateOpportunity: updateOpportunityDefaults,
 };
 
 type SaveResult =
@@ -253,6 +257,10 @@ function ConfigForm({
           currentAgentId={agentId}
         />
       );
+    case 'createOpportunity':
+      return <CreateOpportunityForm value={value} onChange={onChange} locationId={locationId} />;
+    case 'updateOpportunity':
+      return <UpdateOpportunityForm value={value} onChange={onChange} locationId={locationId} />;
   }
 }
 
