@@ -7,13 +7,18 @@ import { ACTION_TYPES, type ActionType } from './types';
 // o port futuro bidirecional.
 
 const triggerWorkflowConfig = z.object({
-  workflowIds: z.array(z.string().uuid()).min(1),
-  triggerCondition: z.string().min(1),
+  workflowIds: z
+    .array(z.string().uuid({ message: 'ID de workflow precisa ser um UUID valido' }))
+    .min(1, { message: 'Adicione ao menos 1 workflow' }),
+  triggerCondition: z.string().min(1, { message: 'Condicao de disparo e obrigatoria' }),
 });
 
 const updateContactFieldConfig = z.object({
-  contactFieldId: z.string().min(1),
-  description: z.string().min(1).max(500),
+  contactFieldId: z.string().min(1, { message: 'Selecione o campo do contato' }),
+  description: z
+    .string()
+    .min(1, { message: 'Descricao e obrigatoria' })
+    .max(500, { message: 'Descricao tem no maximo 500 caracteres' }),
   // Obrigatorio pra dataType=TEXT no GHL. Outros dataTypes (DATE,
   // MULTIPLE_OPTIONS, etc) ainda nao foram sondados — manter optional
   // ate confirmar shape final.
@@ -21,7 +26,7 @@ const updateContactFieldConfig = z.object({
 });
 
 const appointmentBookingConfig = z.object({
-  calendarId: z.string().min(1),
+  calendarId: z.string().min(1, { message: 'Selecione um calendar' }),
   onlySendLink: z.boolean().default(false),
   triggerWorkflow: z.boolean().default(false),
   sleepAfterBooking: z.boolean().default(false),
@@ -32,30 +37,47 @@ const appointmentBookingConfig = z.object({
 
 const sleepFields = {
   reactivateEnabled: z.boolean().default(true),
-  sleepTime: z.number().int().positive().optional(),
+  sleepTime: z
+    .number({ message: 'Tempo de pausa precisa ser um numero' })
+    .int({ message: 'Tempo de pausa precisa ser inteiro' })
+    .positive({ message: 'Tempo de pausa precisa ser maior que zero' })
+    .optional(),
   sleepTimeUnit: z.enum(['minutes', 'hours', 'days']).optional(),
 };
 
 const stopBotConfig = z
   .object({
     stopBotDetectionType: z.enum(['Goodbye', 'Custom']),
-    stopBotTriggerCondition: z.string().min(10).max(500),
-    stopBotExamples: z.array(z.string()).min(2),
-    finalMessage: z.string().min(3).max(150),
+    stopBotTriggerCondition: z
+      .string()
+      .min(10, { message: 'Condicao de disparo precisa ter no minimo 10 caracteres' })
+      .max(500, { message: 'Condicao de disparo tem no maximo 500 caracteres' }),
+    stopBotExamples: z
+      .array(z.string())
+      .min(2, { message: 'Adicione no minimo 2 exemplos (digite e clique no botao + ou pressione Enter)' }),
+    finalMessage: z
+      .string()
+      .min(3, { message: 'Mensagem final precisa ter no minimo 3 caracteres' })
+      .max(150, { message: 'Mensagem final tem no maximo 150 caracteres' }),
     enabled: z.boolean().default(true),
     ...sleepFields,
   })
   .refine(
     (d) => !d.reactivateEnabled || (d.sleepTime !== undefined && d.sleepTimeUnit !== undefined),
-    { message: 'sleepTime and sleepTimeUnit are required when reactivateEnabled=true', path: ['sleepTime'] },
+    { message: 'Quando reativar automaticamente esta ligado, tempo e unidade de pausa sao obrigatorios', path: ['sleepTime'] },
   );
 
 const transferBotConfig = z.object({
   transferBotType: z.enum(['Default', 'Custom']),
-  transferToBot: z.string().min(1),
+  transferToBot: z.string().min(1, { message: 'ID do agent de destino e obrigatorio' }),
   enabled: z.boolean().default(true),
-  transferBotTriggerCondition: z.string().min(10).max(500),
-  transferBotExamples: z.array(z.string()).min(2),
+  transferBotTriggerCondition: z
+    .string()
+    .min(10, { message: 'Condicao de disparo precisa ter no minimo 10 caracteres' })
+    .max(500, { message: 'Condicao de disparo tem no maximo 500 caracteres' }),
+  transferBotExamples: z
+    .array(z.string())
+    .min(2, { message: 'Adicione no minimo 2 exemplos (digite e clique no botao + ou pressione Enter)' }),
 });
 
 const advancedFollowupConfig = z.object({
@@ -65,25 +87,34 @@ const advancedFollowupConfig = z.object({
     .array(
       z.object({
         id: z.number().int().min(1).max(5),
-        followupTime: z.number().int().min(1).max(180),
+        followupTime: z
+          .number()
+          .int()
+          .min(1, { message: 'Tempo precisa ser >= 1' })
+          .max(180, { message: 'Tempo precisa ser <= 180' }),
         followupTimeUnit: z.enum(['minutes', 'hours', 'days']),
         aiEnabledMessage: z.boolean().default(true),
         triggerWorkflow: z.boolean().default(false),
       }),
     )
-    .min(1)
-    .max(5),
+    .min(1, { message: 'Adicione ao menos 1 follow-up na sequencia' })
+    .max(5, { message: 'No maximo 5 follow-ups na sequencia' }),
 });
 
 // `examples` aqui e generico (sem prefixo) — anomalia do GHL, mantido literal.
 const humanHandOverConfig = z
   .object({
     enabled: z.boolean().default(true),
-    triggerCondition: z.string().min(10).max(500),
+    triggerCondition: z
+      .string()
+      .min(10, { message: 'Condicao de disparo precisa ter no minimo 10 caracteres' })
+      .max(500, { message: 'Condicao de disparo tem no maximo 500 caracteres' }),
     handoverType: z.enum(['contactRequest', 'lackOfInformation', 'failedToResolveIssue', 'custom']),
-    examples: z.array(z.string()).min(1),
-    finalMessage: z.string().min(1),
-    assignToUserId: z.string().min(1),
+    examples: z
+      .array(z.string())
+      .min(1, { message: 'Adicione ao menos 1 exemplo (digite e clique no botao + ou pressione Enter)' }),
+    finalMessage: z.string().min(1, { message: 'Mensagem final e obrigatoria' }),
+    assignToUserId: z.string().min(1, { message: 'Selecione o usuario designado' }),
     skipAssignToUser: z.boolean().default(false),
     createTask: z.boolean().default(false),
     tags: z.array(z.string()).default([]),
@@ -91,10 +122,10 @@ const humanHandOverConfig = z
   })
   .refine(
     (d) => !d.reactivateEnabled || (d.sleepTime !== undefined && d.sleepTimeUnit !== undefined),
-    { message: 'sleepTime and sleepTimeUnit are required when reactivateEnabled=true', path: ['sleepTime'] },
+    { message: 'Quando reativar automaticamente esta ligado, tempo e unidade de pausa sao obrigatorios', path: ['sleepTime'] },
   );
 
-const CONFIG_SCHEMAS: Record<ActionType, z.ZodTypeAny> = {
+export const CONFIG_SCHEMAS: Record<ActionType, z.ZodTypeAny> = {
   triggerWorkflow: triggerWorkflowConfig,
   updateContactField: updateContactFieldConfig,
   appointmentBooking: appointmentBookingConfig,
