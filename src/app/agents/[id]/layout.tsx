@@ -4,7 +4,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { AgentProvider, useAgent } from '@/contexts/agent-context';
-import { ArrowLeft, Loader2, Trash2, Check, AlertTriangle, Zap, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Trash2, Check } from 'lucide-react';
 
 const TABS = [
   { slug: 'general', label: 'Geral', description: 'Informações e status' },
@@ -17,7 +17,7 @@ function HeaderAndTabs({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const { agent, agentId, locationId, loading, message, updateAgent, deleteAgent } = useAgent();
+  const { agent, agentId, locationId, loading, updateAgent, deleteAgent } = useAgent();
 
   const qs = searchParams.toString();
   const buildHref = (slug: string) => `/agents/${agentId}/${slug}${qs ? `?${qs}` : ''}`;
@@ -74,26 +74,6 @@ function HeaderAndTabs({ children }: { children: React.ReactNode }) {
       </div>
 
       <div className="max-w-7xl mx-auto p-8 animate-slide-up">
-        {message && (
-          <div
-            className={`p-4 rounded-xl mb-6 flex items-center gap-3 ${
-              message.type === 'success'
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                : message.type === 'warning'
-                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                : message.type === 'info'
-                ? 'bg-homio-purple-500/10 text-homio-purple-200 border border-homio-purple-500/20'
-                : 'bg-red-500/10 text-red-400 border border-red-500/20'
-            }`}
-          >
-            {message.type === 'success' && <Check className="w-5 h-5 flex-shrink-0" />}
-            {message.type === 'warning' && <AlertTriangle className="w-5 h-5 flex-shrink-0" />}
-            {message.type === 'info' && <Zap className="w-5 h-5 flex-shrink-0" />}
-            {message.type === 'error' && <X className="w-5 h-5 flex-shrink-0" />}
-            {message.text}
-          </div>
-        )}
-
         <div className="bg-card rounded-xl border border-border mb-6">
           <div className="border-b border-border">
             <div className="flex space-x-1 px-6">

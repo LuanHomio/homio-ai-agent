@@ -1,12 +1,12 @@
 'use client';
 
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import type { Agent, UpdateAgentRequest } from '@/lib/types';
 import { promptToMarkdown } from '@/lib/prompt-formatter';
 
 type MessageType = 'success' | 'error' | 'warning' | 'info';
-export type Message = { type: MessageType; text: string } | null;
 
 type AgentContextValue = {
   agentId: string;
@@ -15,7 +15,6 @@ type AgentContextValue = {
   setAgent: (updater: (prev: Agent | null) => Agent | null) => void;
   loading: boolean;
   setLoading: (v: boolean) => void;
-  message: Message;
   showMessage: (type: MessageType, text: string) => void;
   updateAgent: () => Promise<void>;
   deleteAgent: () => Promise<void>;
@@ -41,17 +40,16 @@ export function AgentProvider({
   const router = useRouter();
   const [agent, setAgentState] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<Message>(null);
-  const messageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const setAgent = (updater: (prev: Agent | null) => Agent | null) => {
     setAgentState(updater);
   };
 
   const showMessage = (type: MessageType, text: string) => {
-    if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
-    setMessage({ type, text });
-    messageTimeoutRef.current = setTimeout(() => setMessage(null), 5000);
+    if (type === 'success') toast.success(text);
+    else if (type === 'error') toast.error(text);
+    else if (type === 'warning') toast.warning(text);
+    else toast.info(text);
   };
 
   const fetchAgent = async () => {
@@ -140,7 +138,6 @@ export function AgentProvider({
         setAgent,
         loading,
         setLoading,
-        message,
         showMessage,
         updateAgent,
         deleteAgent,
