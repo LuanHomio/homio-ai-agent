@@ -1,7 +1,7 @@
 'use client';
 
-import { Input } from '@/components/ui/input';
 import { FieldGroup, FieldLabel, SwitchField } from '../form-fields';
+import { GhlSelect } from '../GhlSelect';
 
 export type AppointmentBookingConfig = {
   calendarId: string;
@@ -26,18 +26,22 @@ export const appointmentBookingDefaults: AppointmentBookingConfig = {
 export function AppointmentBookingForm({
   value,
   onChange,
+  locationId,
 }: {
   value: AppointmentBookingConfig;
   onChange: (v: AppointmentBookingConfig) => void;
+  locationId: string;
 }) {
   return (
     <div className="space-y-4">
       <FieldGroup errorField="calendarId">
-        <FieldLabel label="ID do Calendar" hint="ID do calendar do GHL" required />
-        <Input
+        <FieldLabel label="Calendar" hint="Calendar do GHL onde o agendamento sera feito" required />
+        <GhlSelect
+          resource="calendars"
+          locationId={locationId}
           value={value.calendarId}
-          onChange={(e) => onChange({ ...value, calendarId: e.target.value })}
-          placeholder="ex: cal-abc123"
+          onChange={(id) => onChange({ ...value, calendarId: id })}
+          placeholder="Selecione um calendar..."
         />
       </FieldGroup>
 

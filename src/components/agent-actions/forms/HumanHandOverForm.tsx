@@ -3,6 +3,8 @@
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { FieldGroup, FieldLabel, SelectField, StringArrayInput, SwitchField } from '../form-fields';
+import { GhlSelect } from '../GhlSelect';
+import { GhlTagInput } from '../GhlTagInput';
 
 export type HumanHandOverConfig = {
   enabled: boolean;
@@ -37,9 +39,11 @@ export const humanHandOverDefaults: HumanHandOverConfig = {
 export function HumanHandOverForm({
   value,
   onChange,
+  locationId,
 }: {
   value: HumanHandOverConfig;
   onChange: (v: HumanHandOverConfig) => void;
+  locationId: string;
 }) {
   return (
     <div className="space-y-4">
@@ -96,21 +100,24 @@ export function HumanHandOverForm({
 
       <FieldGroup errorField="assignToUserId">
         <FieldLabel
-          label="ID do Usuario Designado"
-          hint="ID do usuario GHL a quem atribuir a conversa/task"
+          label="Usuario Designado"
+          hint="Usuario GHL a quem atribuir a conversa/task"
           required
         />
-        <Input
+        <GhlSelect
+          resource="users"
+          locationId={locationId}
           value={value.assignToUserId}
-          onChange={(e) => onChange({ ...value, assignToUserId: e.target.value })}
-          placeholder="ex: user-id-123"
+          onChange={(id) => onChange({ ...value, assignToUserId: id })}
+          placeholder="Selecione um usuario..."
         />
       </FieldGroup>
 
       <FieldGroup errorField="tags">
-        <FieldLabel label="Tags a adicionar no contato" />
-        <StringArrayInput
-          values={value.tags}
+        <FieldLabel label="Tags a adicionar no contato" hint="Pesquise tags existentes ou crie novas" />
+        <GhlTagInput
+          locationId={locationId}
+          value={value.tags}
           onChange={(v) => onChange({ ...value, tags: v })}
           placeholder="ex: human handover"
         />

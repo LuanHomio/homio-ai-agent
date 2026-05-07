@@ -1,7 +1,8 @@
 'use client';
 
 import { Textarea } from '@/components/ui/textarea';
-import { FieldGroup, FieldLabel, StringArrayInput } from '../form-fields';
+import { FieldGroup, FieldLabel } from '../form-fields';
+import { GhlSelect } from '../GhlSelect';
 
 export type TriggerWorkflowConfig = {
   workflowIds: string[];
@@ -16,23 +17,27 @@ export const triggerWorkflowDefaults: TriggerWorkflowConfig = {
 export function TriggerWorkflowForm({
   value,
   onChange,
+  locationId,
 }: {
   value: TriggerWorkflowConfig;
   onChange: (v: TriggerWorkflowConfig) => void;
+  locationId: string;
 }) {
   return (
     <div className="space-y-4">
       <FieldGroup errorField="workflowIds">
         <FieldLabel
-          label="IDs dos Workflows"
-          hint="UUIDs dos workflows do GHL que serao disparados (1 ou mais)"
+          label="Workflows"
+          hint="Workflows do GHL que serao disparados (1 ou mais)"
           required
         />
-        <StringArrayInput
-          values={value.workflowIds}
-          onChange={(v) => onChange({ ...value, workflowIds: v })}
-          placeholder="ex: 6b9f...e3a4"
-          emptyMessage="Adicione ao menos 1 workflow ID"
+        <GhlSelect
+          multi
+          resource="workflows"
+          locationId={locationId}
+          value={value.workflowIds}
+          onChange={(ids) => onChange({ ...value, workflowIds: ids })}
+          placeholder="Selecione um ou mais workflows..."
         />
       </FieldGroup>
 

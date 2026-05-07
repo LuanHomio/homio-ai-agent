@@ -7,6 +7,8 @@ import {
   UserRoundCheck,
   Clock,
   ArrowRightLeft,
+  Target,
+  Pencil,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -61,6 +63,18 @@ export const ACTION_TYPE_META: Record<ActionType, ActionTypeMeta> = {
     description: 'Passa a conversa para outro agent',
     icon: ArrowRightLeft,
   },
+  createOpportunity: {
+    type: 'createOpportunity',
+    label: 'Criar Oportunidade',
+    description: 'Cria uma opportunity nova no pipeline definido (extensao Homio)',
+    icon: Target,
+  },
+  updateOpportunity: {
+    type: 'updateOpportunity',
+    label: 'Atualizar Oportunidade',
+    description: 'Atualiza a opportunity mais recente do contato (extensao Homio)',
+    icon: Pencil,
+  },
 };
 
 export const ACTION_TYPE_LIST: ActionTypeMeta[] = [
@@ -71,6 +85,8 @@ export const ACTION_TYPE_LIST: ActionTypeMeta[] = [
   ACTION_TYPE_META.humanHandOver,
   ACTION_TYPE_META.advancedFollowup,
   ACTION_TYPE_META.transferBot,
+  ACTION_TYPE_META.createOpportunity,
+  ACTION_TYPE_META.updateOpportunity,
 ];
 
 // Traducao dos paths tecnicos do schema pra labels amigaveis exibidos
@@ -116,6 +132,17 @@ export const FIELD_LABELS: Record<string, string> = {
   sleepTime: 'Tempo de Pausa',
   sleepTimeUnit: 'Unidade de Tempo',
   enabled: 'Ativo',
+  // createOpportunity / updateOpportunity
+  pipelineId: 'Pipeline',
+  pipelineStageId: 'Stage Inicial',
+  source: 'Fonte (source)',
+  assignedToUserId: 'Responsavel',
+  collectMonetaryValue: 'Permitir agent definir valor',
+  agentEditableCustomFieldIds: 'Campos editaveis pelo agent',
+  canMoveStage: 'Pode mover stage',
+  canChangeStatus: 'Pode mudar status',
+  canUpdateMonetaryValue: 'Pode atualizar valor',
+  canReassign: 'Pode reatribuir responsavel',
 };
 
 export function formatFieldPath(path: (string | number)[]): string {

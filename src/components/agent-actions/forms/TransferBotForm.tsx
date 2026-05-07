@@ -1,8 +1,8 @@
 'use client';
 
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { FieldGroup, FieldLabel, SelectField, StringArrayInput, SwitchField } from '../form-fields';
+import { GhlSelect } from '../GhlSelect';
 
 export type TransferBotConfig = {
   transferBotType: 'Default' | 'Custom';
@@ -23,9 +23,13 @@ export const transferBotDefaults: TransferBotConfig = {
 export function TransferBotForm({
   value,
   onChange,
+  locationId,
+  currentAgentId,
 }: {
   value: TransferBotConfig;
   onChange: (v: TransferBotConfig) => void;
+  locationId: string;
+  currentAgentId: string;
 }) {
   return (
     <div className="space-y-4">
@@ -42,11 +46,14 @@ export function TransferBotForm({
       </FieldGroup>
 
       <FieldGroup errorField="transferToBot">
-        <FieldLabel label="ID do Agent Destino" hint="ID do agent (GHL) que vai receber a conversa" required />
-        <Input
+        <FieldLabel label="Agent de Destino" hint="Outro agent na mesma subconta que vai receber a conversa" required />
+        <GhlSelect
+          resource="agents-options"
+          locationId={locationId}
+          extraParams={{ exclude: currentAgentId }}
           value={value.transferToBot}
-          onChange={(e) => onChange({ ...value, transferToBot: e.target.value })}
-          placeholder="ex: agent-id-123"
+          onChange={(id) => onChange({ ...value, transferToBot: id })}
+          placeholder="Selecione um agent..."
         />
       </FieldGroup>
 

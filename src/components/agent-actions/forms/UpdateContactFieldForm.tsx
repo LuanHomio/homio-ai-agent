@@ -1,8 +1,8 @@
 'use client';
 
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { FieldGroup, FieldLabel, StringArrayInput } from '../form-fields';
+import { GhlSelect } from '../GhlSelect';
 
 export type UpdateContactFieldConfig = {
   contactFieldId: string;
@@ -19,22 +19,23 @@ export const updateContactFieldDefaults: UpdateContactFieldConfig = {
 export function UpdateContactFieldForm({
   value,
   onChange,
+  locationId,
 }: {
   value: UpdateContactFieldConfig;
   onChange: (v: UpdateContactFieldConfig) => void;
+  locationId: string;
 }) {
   return (
     <div className="space-y-4">
       <FieldGroup errorField="contactFieldId">
-        <FieldLabel
-          label="ID do Custom Field"
-          hint="ID do campo customizado do contato no GHL"
-          required
-        />
-        <Input
+        <FieldLabel label="Campo do Contato" hint="Custom field do contato no GHL" required />
+        <GhlSelect
+          resource="custom-fields"
+          locationId={locationId}
+          extraParams={{ model: 'contact' }}
           value={value.contactFieldId}
-          onChange={(e) => onChange({ ...value, contactFieldId: e.target.value })}
-          placeholder="ex: dXyZ12abc"
+          onChange={(id) => onChange({ ...value, contactFieldId: id })}
+          placeholder="Selecione um campo..."
         />
       </FieldGroup>
 

@@ -12,6 +12,7 @@ import { ActionForm } from './ActionForm';
 export interface Props {
   isOpen: boolean;
   agentId: string;
+  locationId: string;
   actionType: ActionType | null;
   /** Todas as actions desse tipo (vindas do parent — filtradas). */
   actionsOfType: AgentActionRow[];
@@ -25,6 +26,7 @@ type Selection = { mode: 'create' } | { mode: 'edit'; actionId: string };
 export function ActionTypePanel({
   isOpen,
   agentId,
+  locationId,
   actionType,
   actionsOfType,
   onClose,
@@ -161,6 +163,7 @@ export function ActionTypePanel({
               <ActionForm
                 key={selection.mode === 'edit' ? `edit:${selection.actionId}` : `create:${actionType}`}
                 agentId={agentId}
+                locationId={locationId}
                 actionType={actionType}
                 editAction={editAction}
                 onSaved={handleSaved}

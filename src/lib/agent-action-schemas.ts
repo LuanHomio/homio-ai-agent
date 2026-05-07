@@ -125,6 +125,46 @@ const humanHandOverConfig = z
     { message: 'Quando reativar automaticamente esta ligado, tempo e unidade de pausa sao obrigatorios', path: ['sleepTime'] },
   );
 
+// Extensoes Homio (nao existem no GHL Conversation AI nativo).
+// Lookup do contact = contato da conversa atual.
+// Lookup da opp em update = ultima opp do contato (qualquer pipeline/status).
+
+const createOpportunityConfig = z.object({
+  pipelineId: z.string().min(1, { message: 'Selecione um pipeline' }),
+  pipelineStageId: z.string().min(1, { message: 'Selecione um stage inicial' }),
+  triggerCondition: z
+    .string()
+    .min(10, { message: 'Condicao de disparo precisa ter no minimo 10 caracteres' })
+    .max(500, { message: 'Condicao de disparo tem no maximo 500 caracteres' }),
+  examples: z
+    .array(z.string())
+    .min(1, { message: 'Adicione ao menos 1 exemplo (digite e clique no botao + ou pressione Enter)' }),
+  enabled: z.boolean().default(true),
+  // Fixos na config (opcional)
+  source: z.string().max(200).optional(),
+  assignedToUserId: z.string().optional(),
+  // O agent pode preencher esses campos via tool calling
+  collectMonetaryValue: z.boolean().default(false),
+  agentEditableCustomFieldIds: z.array(z.string()).default([]),
+});
+
+const updateOpportunityConfig = z.object({
+  triggerCondition: z
+    .string()
+    .min(10, { message: 'Condicao de disparo precisa ter no minimo 10 caracteres' })
+    .max(500, { message: 'Condicao de disparo tem no maximo 500 caracteres' }),
+  examples: z
+    .array(z.string())
+    .min(1, { message: 'Adicione ao menos 1 exemplo (digite e clique no botao + ou pressione Enter)' }),
+  enabled: z.boolean().default(true),
+  // Permissoes do agent — quais campos ele pode atualizar
+  canMoveStage: z.boolean().default(false),
+  canChangeStatus: z.boolean().default(false),
+  canUpdateMonetaryValue: z.boolean().default(false),
+  canReassign: z.boolean().default(false),
+  agentEditableCustomFieldIds: z.array(z.string()).default([]),
+});
+
 export const CONFIG_SCHEMAS: Record<ActionType, z.ZodTypeAny> = {
   triggerWorkflow: triggerWorkflowConfig,
   updateContactField: updateContactFieldConfig,
@@ -133,6 +173,8 @@ export const CONFIG_SCHEMAS: Record<ActionType, z.ZodTypeAny> = {
   humanHandOver: humanHandOverConfig,
   advancedFollowup: advancedFollowupConfig,
   transferBot: transferBotConfig,
+  createOpportunity: createOpportunityConfig,
+  updateOpportunity: updateOpportunityConfig,
 };
 
 const baseFields = {

@@ -243,6 +243,8 @@ export const ACTION_TYPES = [
   'humanHandOver',
   'advancedFollowup',
   'transferBot',
+  'createOpportunity',
+  'updateOpportunity',
 ] as const;
 
 export type ActionType = typeof ACTION_TYPES[number];
