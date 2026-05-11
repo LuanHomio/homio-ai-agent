@@ -11,6 +11,7 @@ const TABS = [
   { slug: 'prompt', label: 'Prompt', description: 'Personalidade e objetivos' },
   { slug: 'knowledge', label: 'Base de Conhecimento', description: 'Fontes e FAQs' },
   { slug: 'actions', label: 'Ações', description: 'Workflows, handover, follow-up' },
+  { slug: 'logs', label: 'Logs', description: 'Execuções e diagnostico' },
 ] as const;
 
 function HeaderAndTabs({ children }: { children: React.ReactNode }) {
@@ -22,7 +23,7 @@ function HeaderAndTabs({ children }: { children: React.ReactNode }) {
   const qs = searchParams.toString();
   const buildHref = (slug: string) => `/agents/${agentId}/${slug}${qs ? `?${qs}` : ''}`;
   const backHref = locationId ? `/agents/${locationId}${qs ? `?${qs}` : ''}` : `/agents/${agentId}`;
-  const activeSlug = TABS.find((t) => pathname.endsWith(`/${t.slug}`))?.slug ?? 'general';
+  const activeSlug = TABS.find((t) => new RegExp(`/${t.slug}(/|$)`).test(pathname))?.slug ?? 'general';
 
   if (!agent) {
     return (
