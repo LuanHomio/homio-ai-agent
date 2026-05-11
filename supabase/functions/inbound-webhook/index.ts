@@ -550,20 +550,63 @@ async function runBatch(batchId: string) {
         }
       }
     } else {
+    const preview = (v: any, max = 300) => {
+      try {
+        const s = typeof v === "string" ? v : JSON.stringify(v);
+        return s.length > max ? s.substring(0, max) + "...[truncated]" : s;
+      } catch { return "[unserializable]"; }
+    };
+    const GEMINI_MODEL = "gemini-2.5-flash-lite";
+    debugSources.push({
+      at: nowIso(),
+      source: "decision_trace",
+      step: "gemini_loop_start",
+      model: GEMINI_MODEL,
+      prompt_preview: preview(prompt, 500),
+      tools_count: Array.isArray(tools?.[0]?.function_declarations) ? tools[0].function_declarations.length : 0,
+      max_iters: 3,
+    });
     for (let i = 0; i < 3; i++) {
-      const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${Deno.env.get("GEMINI_API_KEY")}`, {
+      const geminiStartedAt = Date.now();
+      const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${Deno.env.get("GEMINI_API_KEY")}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contents, tools, systemInstruction: { parts: [{ text: prompt }] } })
       });
-      
+
       if (!gRes.ok) {
         const errText = await gRes.text();
+        debugSources.push({
+          at: nowIso(),
+          source: "gemini_call",
+          iter: i,
+          ok: false,
+          status: gRes.status,
+          latency_ms: Date.now() - geminiStartedAt,
+          error_preview: preview(errText, 500),
+        });
         throw new Error(`Gemini API error: ${gRes.status} - ${errText}`);
       }
 
       const gData = await gRes.json();
       const candidate = gData.candidates?.[0];
       const part = candidate?.content?.parts?.[0];
+      const u = gData.usageMetadata ?? {};
+      debugSources.push({
+        at: nowIso(),
+        source: "gemini_call",
+        iter: i,
+        ok: true,
+        latency_ms: Date.now() - geminiStartedAt,
+        finishReason: candidate?.finishReason ?? null,
+        promptFeedback: gData?.promptFeedback ?? null,
+        tokens: {
+          prompt: u.promptTokenCount ?? null,
+          candidates: u.candidatesTokenCount ?? null,
+          total: u.totalTokenCount ?? null,
+        },
+        decision: part?.functionCall ? "tool_call" : (part?.text ? "text" : "empty"),
+        tool_name: part?.functionCall?.name ?? null,
+      });
 
         if (part?.functionCall) {
         const call = part.functionCall;
@@ -574,14 +617,31 @@ async function runBatch(batchId: string) {
 
         // 1. Tenta primeiro como agent_action dinamica (function name = action_${actionId})
         const isAgentAction = agentActions.some((a) => fnNameForAction(a) === call.name);
+        const toolStartedAt = Date.now();
         if (isAgentAction) {
           try {
             const result = await tryExecuteAgentAction(call.name, callArgs, agentActions, actionCtx);
             toolResult = result ?? { error: "Action not found" };
-            debugSources.push({ at: nowIso(), source: "agent_action", name: call.name, ok: !!toolResult?.success });
+            debugSources.push({
+              at: nowIso(),
+              source: "agent_action",
+              name: call.name,
+              ok: !!toolResult?.success,
+              latency_ms: Date.now() - toolStartedAt,
+              args_preview: preview(callArgs, 400),
+              result_preview: preview(toolResult, 400),
+            });
           } catch (err: any) {
             toolResult = { error: `Failed to execute agent action: ${err?.message || String(err)}` };
-            debugSources.push({ at: nowIso(), source: "agent_action", name: call.name, ok: false, error: err?.message || String(err) });
+            debugSources.push({
+              at: nowIso(),
+              source: "agent_action",
+              name: call.name,
+              ok: false,
+              latency_ms: Date.now() - toolStartedAt,
+              error: err?.message || String(err),
+              args_preview: preview(callArgs, 400),
+            });
           }
         } else {
           // 2. Fallback pro TOOL_MAP estatico (4 tools base)
@@ -609,10 +669,27 @@ async function runBatch(batchId: string) {
                 body: JSON.stringify(callArgs)
               });
               toolResult = await fnRes.json();
-              debugSources.push({ at: nowIso(), source: "tool_call", name: call.name, ok: fnRes.ok, status: fnRes.status });
+              debugSources.push({
+                at: nowIso(),
+                source: "tool_call",
+                name: call.name,
+                ok: fnRes.ok,
+                status: fnRes.status,
+                latency_ms: Date.now() - toolStartedAt,
+                args_preview: preview(callArgs, 400),
+                result_preview: preview(toolResult, 400),
+              });
             } catch (err: any) {
               toolResult = { error: `Failed to call tool function: ${err?.message || String(err)}` };
-              debugSources.push({ at: nowIso(), source: "tool_call", name: call.name, ok: false, error: err?.message || String(err) });
+              debugSources.push({
+                at: nowIso(),
+                source: "tool_call",
+                name: call.name,
+                ok: false,
+                latency_ms: Date.now() - toolStartedAt,
+                error: err?.message || String(err),
+                args_preview: preview(callArgs, 400),
+              });
             }
           } else {
             toolResult = { error: "Tool not implemented" };
@@ -624,12 +701,22 @@ async function runBatch(batchId: string) {
           role: "function",
           parts: [{ functionResponse: { name: call.name, response: { content: toolResult } } }]
         });
-        
+
         continue;
       }
 
       finalReply = part?.text || "Desculpe, não consegui formular uma resposta.";
-        debugSources.push({ at: nowIso(), source: "decision_trace", step: "gemini_text_response" });
+      debugSources.push({
+        at: nowIso(),
+        source: "decision_trace",
+        step: "gemini_text_response",
+        ok: !!part?.text,
+        iter: i,
+        text_length: part?.text?.length ?? 0,
+        finishReason: candidate?.finishReason ?? null,
+        promptFeedback: gData?.promptFeedback ?? null,
+        reply_preview: preview(finalReply, 400),
+      });
       break;
     }
     }
