@@ -20,7 +20,9 @@ import {
   RefreshCw,
   AlertTriangle,
   HelpCircle,
+  FileText,
 } from 'lucide-react';
+import { DocumentsManager } from '@/components/knowledge/documents-manager';
 
 type KbSource = { id: string; url: string; scope: 'domain' | 'path' | 'single'; depth: number };
 
@@ -35,10 +37,11 @@ export default function KnowledgeTabPage() {
   const [newKBName, setNewKBName] = useState('');
   const [newKBDescription, setNewKBDescription] = useState('');
   const [showWebCrawlerManager, setShowWebCrawlerManager] = useState(false);
+  const [showDocumentsManager, setShowDocumentsManager] = useState(false);
   const [kbSourcesForActive, setKbSourcesForActive] = useState<KbSource[]>([]);
   const [newSourceUrl, setNewSourceUrl] = useState('');
   const [crawlStatuses, setCrawlStatuses] = useState<Record<string, any>>({});
-  const [kbStats, setKbStats] = useState<Record<string, { webCrawler: number; faqs: number }>>({});
+  const [kbStats, setKbStats] = useState<Record<string, { webCrawler: number; faqs: number; documents: number }>>({});
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -133,28 +136,31 @@ export default function KnowledgeTabPage() {
 
   const fetchKBStats = async (kbId: string) => {
     try {
-      const [sourcesResponse, faqsResponse] = await Promise.all([
+      const [sourcesResponse, faqsResponse, docsResponse] = await Promise.all([
         fetch(`/api/kb/source?knowledge_base_id=${kbId}`),
         fetch(`/api/kb/faqs?knowledge_base_id=${kbId}`),
+        fetch(`/api/kb/documents?knowledge_base_id=${kbId}`),
       ]);
 
       const sources = sourcesResponse.ok ? await sourcesResponse.json() : [];
       const faqs = faqsResponse.ok ? await faqsResponse.json() : [];
+      const docsData = docsResponse.ok ? await docsResponse.json() : { items: [] };
+      const documents = Array.isArray(docsData?.items) ? docsData.items : [];
 
       setKbStats((prev) => ({
         ...prev,
-        [kbId]: { webCrawler: sources.length, faqs: faqs.length },
+        [kbId]: { webCrawler: sources.length, faqs: faqs.length, documents: documents.length },
       }));
     } catch (error) {
       console.error('Error fetching KB stats:', error);
       setKbStats((prev) => ({
         ...prev,
-        [kbId]: { webCrawler: Math.floor(Math.random() * 20), faqs: Math.floor(Math.random() * 10) },
+        [kbId]: { webCrawler: 0, faqs: 0, documents: 0 },
       }));
     }
   };
 
-  const getKBStats = (kbId: string) => kbStats[kbId] || { webCrawler: 0, faqs: 0 };
+  const getKBStats = (kbId: string) => kbStats[kbId] || { webCrawler: 0, faqs: 0, documents: 0 };
 
   const fetchSourcesForKB = async (kbId: string) => {
     try {
@@ -546,7 +552,7 @@ export default function KnowledgeTabPage() {
                           <div className="flex flex-col items-center space-y-1">
                             <span className="text-sm">{kb.name}</span>
                             <span className="text-xs opacity-75">
-                              {getKBStats(kbId).webCrawler + getKBStats(kbId).faqs} itens
+                              {getKBStats(kbId).webCrawler + getKBStats(kbId).faqs + getKBStats(kbId).documents} itens
                             </span>
                           </div>
                         </button>
@@ -569,7 +575,7 @@ export default function KnowledgeTabPage() {
                               <p className="text-muted-foreground text-sm mb-4">{kb.description}</p>
                             )}
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div
                                 className="bg-secondary rounded-xl p-4 border border-border hover:border-homio-purple-500/20 transition-colors cursor-pointer"
                                 onClick={async () => {
@@ -643,7 +649,59 @@ export default function KnowledgeTabPage() {
                                   Crie perguntas e respostas frequentes para o agent
                                 </p>
                               </div>
+
+                              <div
+                                className="bg-secondary rounded-xl p-4 border border-border hover:border-homio-purple-500/20 transition-colors cursor-pointer"
+                                onClick={() => setShowDocumentsManager((prev) => !prev)}
+                              >
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-10 h-10 bg-sky-500/10 rounded-xl flex items-center justify-center">
+                                      <FileText className="w-5 h-5 text-sky-300" />
+                                    </div>
+                                    <div>
+                                      <div className="text-foreground font-medium">Documentos</div>
+                                      <div className="text-muted-foreground text-sm">
+                                        {getKBStats(activeKB).documents} arquivo{getKBStats(activeKB).documents === 1 ? '' : 's'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowDocumentsManager((prev) => !prev);
+                                    }}
+                                  >
+                                    <Settings className="w-4 h-4 mr-1" />
+                                    Gerenciar
+                                  </Button>
+                                </div>
+                                <p className="text-muted-foreground text-xs">
+                                  Envie PDFs, DOCX ou CSV para indexar no agent
+                                </p>
+                              </div>
                             </div>
+
+                            {showDocumentsManager && activeKB && (
+                              <div className="mt-4 bg-card border border-border rounded-xl p-4">
+                                <h6 className="text-foreground font-medium mb-3">
+                                  <FileText className="w-4 h-4 inline-block mr-2" />
+                                  Documentos da base
+                                </h6>
+                                <DocumentsManager
+                                  knowledgeBaseId={activeKB}
+                                  agentId={agentId}
+                                  onCountChange={(n) =>
+                                    setKbStats((prev) => ({
+                                      ...prev,
+                                      [activeKB]: { ...(prev[activeKB] ?? { webCrawler: 0, faqs: 0, documents: 0 }), documents: n },
+                                    }))
+                                  }
+                                />
+                              </div>
+                            )}
 
                             {showWebCrawlerManager && activeKB && (
                               <div className="mt-4 bg-card border border-border rounded-xl p-4">

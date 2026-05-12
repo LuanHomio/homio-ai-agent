@@ -6,42 +6,45 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const sourceId = searchParams.get('sourceId');
+    const knowledgeBaseId = searchParams.get('knowledge_base_id');
+    const agentId = searchParams.get('agent_id');
 
     let query = supabase
-      .from('knowledge_items')
-      .select('id, url, title, created_at, metadata')
-      .eq('content_type', 'document')
+      .from('kb_sources')
+      .select('id, knowledge_base_id, agent_id, status, metadata, created_at')
+      .eq('source_type', 'document')
       .order('created_at', { ascending: false });
 
-    if (sourceId) {
-      query = query.eq('metadata->>source_id', sourceId);
-    }
+    if (knowledgeBaseId) query = query.eq('knowledge_base_id', knowledgeBaseId);
+    if (agentId) query = query.eq('agent_id', agentId);
 
     const { data, error } = await query;
-
     if (error) {
-      console.error('Database error:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch documents' },
-        { status: 500 }
-      );
+      console.error('[kb/documents] list error:', error);
+      return NextResponse.json({ error: 'failed_to_list' }, { status: 500 });
     }
 
-    const documents = data?.map(item => ({
-      id: item.id,
-      source_id: item.metadata?.source_id || null,
-      url: item.url,
-      title: item.title,
-      created_at: item.created_at
-    })) || [];
+    const items = (data ?? []).map((row: any) => ({
+      id: row.id,
+      knowledge_base_id: row.knowledge_base_id,
+      agent_id: row.agent_id,
+      status: row.status,
+      filename: row.metadata?.filename ?? null,
+      mime: row.metadata?.mime ?? null,
+      kind: row.metadata?.kind ?? null,
+      size_bytes: row.metadata?.size_bytes ?? null,
+      chunk_count: row.metadata?.chunk_count ?? null,
+      page_count: row.metadata?.page_count ?? null,
+      row_count: row.metadata?.row_count ?? null,
+      total_rows_in_source: row.metadata?.total_rows_in_source ?? null,
+      truncated: row.metadata?.truncated ?? null,
+      error_message: row.metadata?.error_message ?? null,
+      created_at: row.created_at,
+    }));
 
-    return NextResponse.json(documents);
-  } catch (error) {
-    console.error('API error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ items });
+  } catch (error: any) {
+    console.error('[kb/documents] internal:', error);
+    return NextResponse.json({ error: 'internal_error' }, { status: 500 });
   }
 }
