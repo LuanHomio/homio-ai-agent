@@ -275,11 +275,14 @@ function getAttachmentUrl(att: any): string | null {
   return att?.url || att?.fileUrl || att?.link || att?.href || null;
 }
 
+const AUDIO_EXTS = new Set(["ogg", "oga", "opus", "mp3", "m4a", "aac", "wav", "amr", "weba", "webm"]);
+const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "webp", "gif", "heic", "heif"]);
+
 function classifyAttachment(att: any): { kind: "pdf" | "image" | "docx" | "csv" | "audio" | "other"; mime: string } {
   const url = String(getAttachmentUrl(att) || "");
   const type = String(att?.type || att?.mimeType || att?.mime || "").toLowerCase();
   const ext = (url.split("?")[0].toLowerCase().match(/\.([a-z0-9]+)$/)?.[1]) || "";
-  if (type.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "gif"].includes(ext)) {
+  if (type.startsWith("image/") || IMAGE_EXTS.has(ext)) {
     const finalMime = type.startsWith("image/") ? type : `image/${ext === "jpg" ? "jpeg" : ext}`;
     return { kind: "image", mime: finalMime };
   }
@@ -288,7 +291,10 @@ function classifyAttachment(att: any): { kind: "pdf" | "image" | "docx" | "csv" 
     return { kind: "docx", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
   }
   if (type === "text/csv" || type === "application/csv" || ext === "csv") return { kind: "csv", mime: "text/csv" };
-  if (type.startsWith("audio/")) return { kind: "audio", mime: type };
+  if (type.startsWith("audio/") || AUDIO_EXTS.has(ext)) {
+    const finalMime = type.startsWith("audio/") ? type : `audio/${ext === "oga" ? "ogg" : ext}`;
+    return { kind: "audio", mime: finalMime };
+  }
   return { kind: "other", mime: type || "application/octet-stream" };
 }
 
@@ -356,8 +362,8 @@ async function processInboundAttachments(rawPayloads: any[]): Promise<{ parts: a
           trace.push({ kind, ok: false, error: err?.message ?? String(err) });
         }
       } else if (kind === "audio") {
-        parts.push({ text: "[anexo de áudio recebido - transcrição não implementada]" });
-        trace.push({ kind, ok: false, reason: "audio_not_supported" });
+        parts.push({ text: "[O usuário enviou um áudio. A transcrição automática feita pelo sistema WhatsApp ja foi incluída no texto da mensagem (marcada com 🎤). Use essa transcrição como o conteúdo do áudio — NÃO afirme que não consegue ouvir áudios. Responda diretamente o que o usuário disse.]" });
+        trace.push({ kind, ok: true, reason: "audio_transcript_in_message_text", mime });
       } else {
         parts.push({ text: `[anexo recebido: ${mime} - tipo não suportado]` });
         trace.push({ kind, ok: false, mime, reason: "unsupported_kind" });
