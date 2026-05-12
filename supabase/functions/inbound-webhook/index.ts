@@ -319,9 +319,16 @@ async function fetchAttachmentBytes(url: string): Promise<{ bytes: Uint8Array; s
   }
 }
 
-async function processInboundAttachments(rawPayloads: any[]): Promise<{ parts: any[]; trace: any[] }> {
+const TRANSCRIPT_MARKER_RE = /🎤\s*\*?\s*transcri/i;
+
+function hasInlineTranscript(text: string): boolean {
+  return TRANSCRIPT_MARKER_RE.test(String(text || ""));
+}
+
+async function processInboundAttachments(rawPayloads: any[], combinedText: string): Promise<{ parts: any[]; trace: any[] }> {
   const parts: any[] = [];
   const trace: any[] = [];
+  const transcriptInBody = hasInlineTranscript(combinedText);
   for (const payload of rawPayloads) {
     const atts = Array.isArray(payload?.attachments) ? payload.attachments : [];
     for (const att of atts) {
@@ -362,8 +369,13 @@ async function processInboundAttachments(rawPayloads: any[]): Promise<{ parts: a
           trace.push({ kind, ok: false, error: err?.message ?? String(err) });
         }
       } else if (kind === "audio") {
-        parts.push({ text: "[O usuário enviou um áudio. A transcrição automática feita pelo sistema WhatsApp ja foi incluída no texto da mensagem (marcada com 🎤). Use essa transcrição como o conteúdo do áudio — NÃO afirme que não consegue ouvir áudios. Responda diretamente o que o usuário disse.]" });
-        trace.push({ kind, ok: true, reason: "audio_transcript_in_message_text", mime });
+        if (transcriptInBody) {
+          parts.push({ text: "[O usuário enviou um áudio. A transcrição automática (sistema whatsapp_homio) já consta na mensagem acima, marcada com 🎤. Use essa transcrição como o conteúdo do áudio — NÃO afirme que não consegue ouvir áudios. Responda diretamente o que o usuário disse.]" });
+          trace.push({ kind, ok: true, reason: "audio_transcript_in_message_text", mime });
+        } else {
+          parts.push({ text: "[O usuário enviou um áudio mas nenhuma transcrição automática foi anexada à mensagem. Peça educadamente para o usuário reenviar o conteúdo em texto, pois você não consegue processar áudios diretamente.]" });
+          trace.push({ kind, ok: true, reason: "audio_no_transcript", mime });
+        }
       } else {
         parts.push({ text: `[anexo recebido: ${mime} - tipo não suportado]` });
         trace.push({ kind, ok: false, mime, reason: "unsupported_kind" });
@@ -549,7 +561,7 @@ async function runBatch(batchId: string) {
         const idList = messageIds.map((id) => `"${id}"`).join(",");
         const inMsgs = await sb(`inbound_messages?message_id=in.(${idList})&select=message_id,raw_payload`);
         const payloads = (inMsgs || []).map((m: any) => m?.raw_payload).filter(Boolean);
-        const result = await processInboundAttachments(payloads);
+        const result = await processInboundAttachments(payloads, texts);
         attachmentExtraParts = result.parts;
         if (result.trace.length > 0) {
           debugSources.push({
