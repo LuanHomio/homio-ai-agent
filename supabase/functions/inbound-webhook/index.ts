@@ -267,6 +267,106 @@ async function getLocToken(locId: string) {
   return tok;
 }
 
+const ATTACH_MAX_INLINE_BYTES = 7 * 1024 * 1024;
+const ATTACH_FETCH_TIMEOUT_MS = 15000;
+
+function getAttachmentUrl(att: any): string | null {
+  if (typeof att === "string") return att;
+  return att?.url || att?.fileUrl || att?.link || att?.href || null;
+}
+
+function classifyAttachment(att: any): { kind: "pdf" | "image" | "docx" | "csv" | "audio" | "other"; mime: string } {
+  const url = String(getAttachmentUrl(att) || "");
+  const type = String(att?.type || att?.mimeType || att?.mime || "").toLowerCase();
+  const ext = (url.split("?")[0].toLowerCase().match(/\.([a-z0-9]+)$/)?.[1]) || "";
+  if (type.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "gif"].includes(ext)) {
+    const finalMime = type.startsWith("image/") ? type : `image/${ext === "jpg" ? "jpeg" : ext}`;
+    return { kind: "image", mime: finalMime };
+  }
+  if (type === "application/pdf" || ext === "pdf") return { kind: "pdf", mime: "application/pdf" };
+  if (type.includes("wordprocessingml") || ext === "docx") {
+    return { kind: "docx", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+  }
+  if (type === "text/csv" || type === "application/csv" || ext === "csv") return { kind: "csv", mime: "text/csv" };
+  if (type.startsWith("audio/")) return { kind: "audio", mime: type };
+  return { kind: "other", mime: type || "application/octet-stream" };
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let bin = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  return btoa(bin);
+}
+
+async function fetchAttachmentBytes(url: string): Promise<{ bytes: Uint8Array; status: number } | null> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ATTACH_FETCH_TIMEOUT_MS);
+    const r = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!r.ok) return { bytes: new Uint8Array(), status: r.status };
+    const ab = await r.arrayBuffer();
+    return { bytes: new Uint8Array(ab), status: r.status };
+  } catch {
+    return null;
+  }
+}
+
+async function processInboundAttachments(rawPayloads: any[]): Promise<{ parts: any[]; trace: any[] }> {
+  const parts: any[] = [];
+  const trace: any[] = [];
+  for (const payload of rawPayloads) {
+    const atts = Array.isArray(payload?.attachments) ? payload.attachments : [];
+    for (const att of atts) {
+      const url = getAttachmentUrl(att);
+      if (!url) { trace.push({ ok: false, skipped: "no_url" }); continue; }
+      const { kind, mime } = classifyAttachment(att);
+
+      if (kind === "pdf" || kind === "image") {
+        const r = await fetchAttachmentBytes(url);
+        if (!r) { trace.push({ kind, ok: false, error: "fetch_failed" }); continue; }
+        if (r.bytes.length === 0) { trace.push({ kind, ok: false, status: r.status }); continue; }
+        if (r.bytes.length > ATTACH_MAX_INLINE_BYTES) {
+          const sizeMb = (r.bytes.length / 1024 / 1024).toFixed(1);
+          parts.push({ text: `[anexo ${kind} grande (${sizeMb}MB) - não anexado ao prompt]` });
+          trace.push({ kind, ok: false, error: "too_large", size_bytes: r.bytes.length });
+          continue;
+        }
+        const data = bytesToBase64(r.bytes);
+        parts.push({ inlineData: { mimeType: mime, data } });
+        trace.push({ kind, ok: true, mime, size_bytes: r.bytes.length });
+      } else if (kind === "docx" || kind === "csv") {
+        try {
+          const efRes = await fetch(`${SB_URL}/functions/v1/kb-extract-document`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${SB_KEY}` },
+            body: JSON.stringify({ url, mime }),
+          });
+          const ef = await efRes.json().catch(() => null);
+          if (ef?.ok && ef?.text) {
+            parts.push({ text: `[anexo ${kind} - conteúdo extraído]\n${ef.text}` });
+            trace.push({ kind, ok: true, char_count: ef.char_count, meta: ef.meta });
+          } else {
+            parts.push({ text: `[anexo ${kind} - não consegui extrair conteúdo]` });
+            trace.push({ kind, ok: false, error: ef?.error ?? `HTTP ${efRes.status}` });
+          }
+        } catch (err: any) {
+          parts.push({ text: `[anexo ${kind} - erro na extração]` });
+          trace.push({ kind, ok: false, error: err?.message ?? String(err) });
+        }
+      } else if (kind === "audio") {
+        parts.push({ text: "[anexo de áudio recebido - transcrição não implementada]" });
+        trace.push({ kind, ok: false, reason: "audio_not_supported" });
+      } else {
+        parts.push({ text: `[anexo recebido: ${mime} - tipo não suportado]` });
+        trace.push({ kind, ok: false, mime, reason: "unsupported_kind" });
+      }
+    }
+  }
+  return { parts, trace };
+}
+
 async function runBatch(batchId: string) {
   try {
     const jobs = await sb(`inbound_jobs?batch_id=eq.${batchId}&status=eq.pending&order=created_at.asc`);
@@ -435,6 +535,30 @@ async function runBatch(batchId: string) {
       locationId: first.location_id,
       flags
     });
+
+    let attachmentExtraParts: any[] = [];
+    try {
+      const messageIds = (jobs as any[]).map((j) => j.message_id).filter(Boolean);
+      if (messageIds.length > 0) {
+        const idList = messageIds.map((id) => `"${id}"`).join(",");
+        const inMsgs = await sb(`inbound_messages?message_id=in.(${idList})&select=message_id,raw_payload`);
+        const payloads = (inMsgs || []).map((m: any) => m?.raw_payload).filter(Boolean);
+        const result = await processInboundAttachments(payloads);
+        attachmentExtraParts = result.parts;
+        if (result.trace.length > 0) {
+          debugSources.push({
+            at: nowIso(),
+            source: "attachments",
+            ok: true,
+            parts_count: result.parts.length,
+            trace: result.trace,
+          });
+        }
+      }
+    } catch (err: any) {
+      debugSources.push({ at: nowIso(), source: "attachments", ok: false, error: err?.message ?? String(err) });
+    }
+
     let contactSnapshot = "";
     let contactCompany = "";
     let contactPrefetchOk = false;
@@ -474,7 +598,13 @@ async function runBatch(batchId: string) {
 
     const technicalContext = `\n\n[Dados técnicos - não mencionar ao usuário]\nlocationId=${first.location_id}\nconversationId=${first.conversation_id}\ncontactId=${first.contact_id}\nmessageType=${first.message_type || ""}\nconversationProviderId=${first.conversation_provider_id || ""}`;
     const derivedContext = contactCompany ? `\n\n[Derivado - não mencionar ao usuário]\nempresa_cadastrada=${contactCompany}` : "";
-    let contents: any[] = [{ role: "user", parts: [{ text: `Histórico:\n${history}\n\nContexto:\n${context}\n\nMensagens:\n${texts}${technicalContext}${derivedContext}${contactSnapshot}` }] }];
+    let contents: any[] = [{
+      role: "user",
+      parts: [
+        { text: `Histórico:\n${history}\n\nContexto:\n${context}\n\nMensagens:\n${texts}${technicalContext}${derivedContext}${contactSnapshot}` },
+        ...attachmentExtraParts,
+      ],
+    }];
     let finalReply = "Desculpe, tive um problema ao processar sua mensagem.";
 
     if (flags.keywordWantsContactSnapshot && !contactPrefetchOk && !isCompanyCorrection(texts)) {
