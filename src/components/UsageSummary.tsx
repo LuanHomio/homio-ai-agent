@@ -193,23 +193,42 @@ export function UsageSummary({ locationId }: { locationId: string }) {
       {/* Mini-grafico de barras diarias */}
       {daily.length > 0 && (
         <div className="p-4 rounded-xl border border-border bg-card/40 mb-4">
-          <div className="text-xs uppercase text-muted-foreground mb-3">Mensagens por dia</div>
-          <div className="flex items-end gap-1 h-24">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs uppercase text-muted-foreground">Mensagens por dia</div>
+            <div className="text-xs text-muted-foreground tabular-nums">
+              pico {dailyChartMax} msg
+            </div>
+          </div>
+          <div className="relative h-24 flex items-end gap-[2px]">
             {daily.map((d) => {
-              const heightPct = (d.message_count / dailyChartMax) * 100;
+              const heightPx = d.message_count > 0
+                ? Math.max(2, Math.round((d.message_count / dailyChartMax) * 96))
+                : 1;
+              const hasData = d.message_count > 0;
               return (
                 <div
                   key={d.date}
-                  className="flex-1 flex flex-col items-center justify-end group relative"
-                  title={`${formatDate(d.date)}: ${d.message_count} mensagens`}
+                  className="flex-1 flex flex-col items-stretch justify-end"
+                  title={`${formatDate(d.date)}: ${d.message_count} mensagem${d.message_count === 1 ? '' : 's'}`}
                 >
                   <div
-                    className="w-full rounded-t bg-gradient-to-t from-homio-purple-600/40 to-homio-purple-400 transition-all"
-                    style={{ height: `${Math.max(heightPct, d.message_count > 0 ? 4 : 0)}%` }}
+                    className={`w-full rounded-t transition-all ${
+                      hasData
+                        ? 'bg-gradient-to-t from-homio-purple-600/60 to-homio-purple-400'
+                        : 'bg-secondary'
+                    }`}
+                    style={{ height: `${heightPx}px` }}
                   />
                 </div>
               );
             })}
+          </div>
+          <div className="flex justify-between mt-2 text-[10px] text-muted-foreground">
+            <span>{formatDate(daily[0].date)}</span>
+            {daily.length > 14 && (
+              <span>{formatDate(daily[Math.floor(daily.length / 2)].date)}</span>
+            )}
+            <span>{formatDate(daily[daily.length - 1].date)}</span>
           </div>
         </div>
       )}

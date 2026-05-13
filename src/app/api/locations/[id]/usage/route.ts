@@ -74,7 +74,17 @@ export async function GET(_request: NextRequest, { params }: { params: LocationP
         estimated_cost_brl: prev.estimated_cost_brl + (Number(row.estimated_cost_brl) || 0),
       });
     }
-    const daily = Array.from(dailyMap.values());
+    // Preenche TODOS os dias do periodo (mesmo sem uso) pra ficar com cara de grafico.
+    const daily: Array<{ date: string; message_count: number; prompt_tokens: number; output_tokens: number; estimated_cost_brl: number }> = [];
+    const cursor = new Date(periodStart);
+    cursor.setUTCHours(0, 0, 0, 0);
+    const endCursor = new Date(periodEnd);
+    endCursor.setUTCHours(0, 0, 0, 0);
+    while (cursor <= endCursor) {
+      const key = cursor.toISOString().slice(0, 10);
+      daily.push(dailyMap.get(key) ?? { date: key, message_count: 0, prompt_tokens: 0, output_tokens: 0, estimated_cost_brl: 0 });
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
 
     // Breakdown por agent (mesmo periodo)
     const { data: byAgentRows } = await supabase
