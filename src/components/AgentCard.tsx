@@ -102,7 +102,7 @@ export function AgentCard({
           Criado em {new Date(agent.created_at).toLocaleDateString('pt-BR')}
         </span>
         <div onClick={(e) => e.stopPropagation()}>
-          <CopyableId id={agent.id} label="ID" />
+          <CopyableId id={agent.id} label="ID do agente" iconOnly />
         </div>
       </div>
 
