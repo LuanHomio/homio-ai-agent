@@ -22,7 +22,9 @@ function HeaderAndTabs({ children }: { children: React.ReactNode }) {
 
   const qs = searchParams.toString();
   const buildHref = (slug: string) => `/agents/${agentId}/${slug}${qs ? `?${qs}` : ''}`;
-  const backHref = locationId ? `/agents/${locationId}${qs ? `?${qs}` : ''}` : `/agents/${agentId}`;
+  // Voltar leva pra page inicial (lista de agents da location). Antes ia pra /agents/{locationId}
+  // que e rota inexistente — caia no /agents/[id] tentando carregar agent UUID = location e quebrava.
+  const backHref = locationId ? `/?locationId=${encodeURIComponent(locationId)}` : '/';
   const activeSlug = TABS.find((t) => new RegExp(`/${t.slug}(/|$)`).test(pathname))?.slug ?? 'general';
 
   if (!agent) {
