@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { CopyableId } from '@/components/ui/copyable-id';
 import { AgentProvider, useAgent } from '@/contexts/agent-context';
 import { ArrowLeft, Loader2, Trash2, Check } from 'lucide-react';
 
@@ -45,7 +46,10 @@ function HeaderAndTabs({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-foreground mb-2">{agent.name}</h1>
-              <p className="text-muted-foreground">Configure seu agent de IA para automatizar conversas</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-muted-foreground">Configure seu agent de IA para automatizar conversas</p>
+                <CopyableId id={agent.id} label="Agent ID" />
+              </div>
             </div>
             <div className="flex gap-3">
               <Button variant="outline" onClick={() => router.push(backHref)}>
