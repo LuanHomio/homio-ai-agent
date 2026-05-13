@@ -16,6 +16,7 @@ import { HeroSection } from '@/components/HeroSection';
 import { EmptyAgentsState } from '@/components/EmptyAgentsState';
 import { AgentCard } from '@/components/AgentCard';
 import { Footer } from '@/components/Footer';
+import { UsageSummary } from '@/components/UsageSummary';
 import { getGHLUserData, type GHLUserData } from '@/lib/ghl-user-data';
 
 interface FAQ {
@@ -565,6 +566,8 @@ export default function KnowledgeBasePage() {
             {message.text}
           </div>
         )}
+
+        {locationId && <UsageSummary locationId={locationId} />}
 
         <div className="mb-12">
           <div className="flex justify-between items-center mb-8 animate-slide-up">
