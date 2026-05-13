@@ -49,6 +49,9 @@ interface Agent {
   system_prompt?: string;
   settings: Record<string, any>;
   is_active: boolean;
+  is_primary: boolean;
+  enabled_channels: ('whatsapp_homio' | 'whatsapp_meta' | 'instagram')[];
+  response_mode: 'responsive' | 'suggestive';
   created_at: string;
   updated_at: string;
   location?: Location;

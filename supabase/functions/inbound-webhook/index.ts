@@ -271,6 +271,30 @@ const ATTACH_MAX_INLINE_BYTES = 7 * 1024 * 1024;
 const ATTACH_FETCH_TIMEOUT_MS = 15000;
 
 // =====================================================
+// Canais (channels) — detectar canal de origem de uma mensagem GHL
+// =====================================================
+// IDs dos custom providers whatsapp_homio (do projeto whatsapp_homio).
+// Mantemos hardcoded por enquanto. Quando outras agencies entrarem, mover pra DB.
+const WHATSAPP_HOMIO_PROVIDER_IDS = new Set([
+  "67a4fa35ffae7881f31684f3", // WA Homio
+  "679d1e13fe8b77fa62001590", // WA Homio 2
+  "67a39b0a1d291e601c80c311", // WA Homio 3
+  "67b8e49217347407acca7fd1", // Whats Homio
+]);
+
+type Channel = "whatsapp_homio" | "whatsapp_meta" | "instagram" | "unknown";
+
+function detectChannel(messageType: any, conversationProviderId: any): Channel {
+  const provId = String(conversationProviderId || "").trim();
+  if (provId && WHATSAPP_HOMIO_PROVIDER_IDS.has(provId)) return "whatsapp_homio";
+
+  const mt = String(messageType || "").toUpperCase();
+  if (mt === "WHATSAPP" || mt === "TYPE_WHATSAPP") return "whatsapp_meta";
+  if (mt === "IG" || mt === "TYPE_INSTAGRAM") return "instagram";
+  return "unknown";
+}
+
+// =====================================================
 // Cost tracking (PR A - billing/usage foundation)
 // =====================================================
 // Precos publicos do gemini-2.5-flash-lite em USD por milhao de tokens.
@@ -422,7 +446,28 @@ async function runBatch(batchId: string) {
       await sb(`conversation_batches?id=eq.${batchId}`, "PATCH", { status: "completed", locked_at: null });
       return;
     }
-    
+
+    // Channel gating: skip se o canal da mensagem nao esta habilitado no agent.
+    const channel = detectChannel(first.message_type, first.conversation_provider_id);
+    const enabledChannels: string[] = Array.isArray(agent?.enabled_channels) ? agent.enabled_channels : [];
+    if (enabledChannels.length > 0 && !enabledChannels.includes(channel)) {
+      await sb(`inbound_jobs?batch_id=eq.${batchId}&status=eq.processing`, "PATCH", {
+        status: "skipped",
+        response_text: "Channel not enabled",
+        context_sources: [{
+          at: nowIso(),
+          source: "decision_trace",
+          step: "channel_not_enabled",
+          detected_channel: channel,
+          enabled_channels: enabledChannels,
+          message_type: first.message_type,
+          conversation_provider_id: first.conversation_provider_id,
+        }],
+      });
+      await sb(`conversation_batches?id=eq.${batchId}`, "PATCH", { status: "completed", locked_at: null });
+      return;
+    }
+
     const kbIds = first.knowledge_base_ids || [];
     const texts = jobs.map((j: any) => j.message_text).join("\n\n");
     const kb = await retrieveKnowledgeItems(texts, kbIds);
