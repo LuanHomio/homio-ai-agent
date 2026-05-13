@@ -7,9 +7,10 @@ type Props = {
   id: string;
   label?: string;
   className?: string;
+  iconOnly?: boolean;
 };
 
-export function CopyableId({ id, label = 'ID', className }: Props) {
+export function CopyableId({ id, label = 'ID', className, iconOnly = false }: Props) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async (e: React.MouseEvent) => {
@@ -23,6 +24,24 @@ export function CopyableId({ id, label = 'ID', className }: Props) {
       // fallback silencioso
     }
   };
+
+  if (iconOnly) {
+    return (
+      <button
+        type="button"
+        onClick={handleCopy}
+        className={`inline-flex items-center justify-center w-7 h-7 rounded-md border border-border bg-secondary/50 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors ${className ?? ''}`}
+        title={copied ? `${label} copiado` : `Copiar ${label}: ${id}`}
+        aria-label={`Copiar ${label}`}
+      >
+        {copied ? (
+          <Check className="w-3.5 h-3.5 text-emerald-300" />
+        ) : (
+          <Copy className="w-3.5 h-3.5" />
+        )}
+      </button>
+    );
+  }
 
   return (
     <button
