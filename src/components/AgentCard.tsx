@@ -2,6 +2,7 @@
 
 import { Bot, Headphones, TrendingUp, Megaphone, Users, Zap, Pencil, Trash2 } from 'lucide-react';
 import { Agent } from '@/lib/types';
+import { CopyableId } from '@/components/ui/copyable-id';
 
 interface AgentCardProps {
   agent: Agent;
@@ -96,10 +97,13 @@ export function AgentCard({
         </p>
       )}
 
-      <div className="flex items-center justify-between text-xs text-muted-foreground mb-5">
-        <span className="text-muted-foreground/60">
+      <div className="flex items-center justify-between text-xs text-muted-foreground mb-5 gap-2">
+        <span className="text-muted-foreground/60 shrink-0">
           Criado em {new Date(agent.created_at).toLocaleDateString('pt-BR')}
         </span>
+        <div onClick={(e) => e.stopPropagation()}>
+          <CopyableId id={agent.id} label="ID" />
+        </div>
       </div>
 
       {showActions && (
