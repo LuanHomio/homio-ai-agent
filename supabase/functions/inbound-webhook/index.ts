@@ -782,7 +782,16 @@ async function runBatch(batchId: string) {
       const geminiStartedAt = Date.now();
       const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${Deno.env.get("GEMINI_API_KEY")}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents, tools, systemInstruction: { parts: [{ text: prompt }] } })
+        body: JSON.stringify({
+          contents,
+          tools,
+          systemInstruction: { parts: [{ text: prompt }] },
+          // Fix bug "Desculpe, nao consegui formular uma resposta": gemini-2.5-flash-lite
+          // ativa thinking por default e em chamadas pos-tool consome todo o output budget
+          // em raciocinio interno, retornando part.text vazio com finishReason=STOP.
+          // thinkingBudget=0 desliga o thinking; mvp atual e single-tool por turno (baixo risco).
+          generationConfig: { maxOutputTokens: 2048, temperature: 0.7, thinkingConfig: { thinkingBudget: 0 } },
+        })
       });
 
       if (!gRes.ok) {
