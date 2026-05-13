@@ -270,6 +270,22 @@ async function getLocToken(locId: string) {
 const ATTACH_MAX_INLINE_BYTES = 7 * 1024 * 1024;
 const ATTACH_FETCH_TIMEOUT_MS = 15000;
 
+// =====================================================
+// Cost tracking (PR A - billing/usage foundation)
+// =====================================================
+// Precos publicos do gemini-2.5-flash-lite em USD por milhao de tokens.
+// Mantemos local pra calcular custo estimado por mensagem.
+const GEMINI_PRICE_INPUT_USD_PER_M = 0.10;
+const GEMINI_PRICE_OUTPUT_USD_PER_M = 0.40;
+const USD_TO_BRL = 5.5; // conservador. Atualizar conforme cambio.
+
+function calcCostBrl(promptTokens: number, outputTokens: number): number {
+  const usd =
+    (promptTokens / 1_000_000) * GEMINI_PRICE_INPUT_USD_PER_M +
+    (outputTokens / 1_000_000) * GEMINI_PRICE_OUTPUT_USD_PER_M;
+  return Number((usd * USD_TO_BRL).toFixed(6));
+}
+
 function getAttachmentUrl(att: any): string | null {
   if (typeof att === "string") return att;
   return att?.url || att?.fileUrl || att?.link || att?.href || null;
@@ -554,6 +570,9 @@ async function runBatch(batchId: string) {
       flags
     });
 
+    // Acumulador de uso pra captura no fim do batch (PR A).
+    const usageTotals = { promptTokens: 0, outputTokens: 0 };
+
     let attachmentExtraParts: any[] = [];
     try {
       const messageIds = (jobs as any[]).map((j) => j.message_id).filter(Boolean);
@@ -739,6 +758,8 @@ async function runBatch(batchId: string) {
       const candidate = gData.candidates?.[0];
       const part = candidate?.content?.parts?.[0];
       const u = gData.usageMetadata ?? {};
+      usageTotals.promptTokens += Number(u.promptTokenCount) || 0;
+      usageTotals.outputTokens += Number(u.candidatesTokenCount) || 0;
       debugSources.push({
         at: nowIso(),
         source: "gemini_call",
@@ -890,6 +911,28 @@ async function runBatch(batchId: string) {
 
     await sb(`inbound_jobs?batch_id=eq.${batchId}&status=eq.processing`, "PATCH", { status: "completed", response_text: finalReply, context_sources: debugSources });
     await sb(`conversation_batches?id=eq.${batchId}`, "PATCH", { status: "completed", locked_at: null });
+
+    // Captura de uso (PR A). Roda apos sucesso do batch.
+    // location_id no inbound_jobs e o GHL string. Usamos agent.location_id (UUID interno).
+    try {
+      const locationUuid = (agent as any)?.location_id;
+      if (locationUuid && (usageTotals.promptTokens > 0 || usageTotals.outputTokens > 0)) {
+        const costBrl = calcCostBrl(usageTotals.promptTokens, usageTotals.outputTokens);
+        const today = new Date().toISOString().slice(0, 10);
+        await sbRpc("increment_agent_usage", {
+          p_agent_id: first.agent_id,
+          p_location_id: locationUuid,
+          p_date: today,
+          p_messages: 1,
+          p_prompt_tokens: usageTotals.promptTokens,
+          p_output_tokens: usageTotals.outputTokens,
+          p_cost_brl: costBrl,
+        });
+      }
+    } catch (err) {
+      console.error(`[usage] increment failed for batch ${batchId}:`, err);
+      // intencional: nao falha o batch por causa de captura de uso
+    }
   }
   catch (err: any) {
     console.error(`Error in runBatch for ${batchId}:`, err);
