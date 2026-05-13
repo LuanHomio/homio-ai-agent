@@ -28,10 +28,17 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
+const ALLOWED_CHANNELS = new Set(['whatsapp_homio', 'whatsapp_meta', 'instagram']);
+const ALLOWED_RESPONSE_MODES = new Set(['responsive', 'suggestive']);
+
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const body: UpdateAgentRequest = await request.json();
-    const { name, description, personality, objective, additional_info, system_prompt, settings, is_active } = body;
+    const {
+      name, description, personality, objective, additional_info,
+      system_prompt, settings, is_active,
+      is_primary, enabled_channels, response_mode,
+    } = body;
 
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
@@ -42,7 +49,37 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (system_prompt !== undefined) updateData.system_prompt = system_prompt;
     if (settings !== undefined) updateData.settings = settings;
     if (is_active !== undefined) updateData.is_active = is_active;
+    if (is_primary !== undefined) updateData.is_primary = is_primary;
+    if (enabled_channels !== undefined) {
+      if (!Array.isArray(enabled_channels) || enabled_channels.some((c) => !ALLOWED_CHANNELS.has(c))) {
+        return NextResponse.json({ error: 'invalid_enabled_channels' }, { status: 400 });
+      }
+      updateData.enabled_channels = enabled_channels;
+    }
+    if (response_mode !== undefined) {
+      if (!ALLOWED_RESPONSE_MODES.has(response_mode)) {
+        return NextResponse.json({ error: 'invalid_response_mode' }, { status: 400 });
+      }
+      updateData.response_mode = response_mode;
+    }
     updateData.updated_at = new Date().toISOString();
+
+    // Se is_primary=true: limpa o flag dos outros agents da mesma location pra
+    // respeitar o unique index parcial (so 1 primary por location).
+    if (is_primary === true) {
+      const { data: target } = await supabase
+        .from('agents')
+        .select('location_id')
+        .eq('id', params.id)
+        .maybeSingle();
+      if (target?.location_id) {
+        await supabase
+          .from('agents')
+          .update({ is_primary: false, updated_at: new Date().toISOString() })
+          .eq('location_id', target.location_id)
+          .neq('id', params.id);
+      }
+    }
 
     const { data: agent, error } = await supabase
       .from('agents')
@@ -58,7 +95,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       if (error.code === 'PGRST116') { // No rows returned
         return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
       }
-      if (error.code === '23505') { // Unique constraint violation (location_id, name)
+      if (error.code === '23505') { // Unique constraint violation
         return NextResponse.json({ error: 'Agent with this name already exists in this location' }, { status: 409 });
       }
       console.error('Error updating agent:', error);

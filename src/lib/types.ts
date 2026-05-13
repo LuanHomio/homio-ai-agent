@@ -68,6 +68,9 @@ export interface Location {
   updated_at: string;
 }
 
+export type AgentChannel = 'whatsapp_homio' | 'whatsapp_meta' | 'instagram';
+export type AgentResponseMode = 'responsive' | 'suggestive';
+
 export interface Agent {
   id: string;
   location_id: string;
@@ -79,6 +82,9 @@ export interface Agent {
   system_prompt?: string;
   settings: Record<string, any>;
   is_active: boolean;
+  is_primary: boolean;
+  enabled_channels: AgentChannel[];
+  response_mode: AgentResponseMode;
   created_at: string;
   updated_at: string;
   location?: Location; // Populated when joining
@@ -121,6 +127,9 @@ export interface UpdateAgentRequest {
   system_prompt?: string;
   settings?: Record<string, any>;
   is_active?: boolean;
+  is_primary?: boolean;
+  enabled_channels?: AgentChannel[];
+  response_mode?: AgentResponseMode;
 }
 
 export interface CreateSourceRequest {

@@ -87,6 +87,9 @@ export function AgentProvider({
         system_prompt: markdownPrompt,
         settings: agent.settings,
         is_active: agent.is_active,
+        is_primary: agent.is_primary,
+        enabled_channels: agent.enabled_channels,
+        response_mode: agent.response_mode,
       };
 
       const response = await fetch(`/api/agents/${agentId}`, {
