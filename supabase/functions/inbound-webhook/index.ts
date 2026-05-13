@@ -275,11 +275,14 @@ function getAttachmentUrl(att: any): string | null {
   return att?.url || att?.fileUrl || att?.link || att?.href || null;
 }
 
+const AUDIO_EXTS = new Set(["ogg", "oga", "opus", "mp3", "m4a", "aac", "wav", "amr", "weba", "webm"]);
+const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "webp", "gif", "heic", "heif"]);
+
 function classifyAttachment(att: any): { kind: "pdf" | "image" | "docx" | "csv" | "audio" | "other"; mime: string } {
   const url = String(getAttachmentUrl(att) || "");
   const type = String(att?.type || att?.mimeType || att?.mime || "").toLowerCase();
   const ext = (url.split("?")[0].toLowerCase().match(/\.([a-z0-9]+)$/)?.[1]) || "";
-  if (type.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "gif"].includes(ext)) {
+  if (type.startsWith("image/") || IMAGE_EXTS.has(ext)) {
     const finalMime = type.startsWith("image/") ? type : `image/${ext === "jpg" ? "jpeg" : ext}`;
     return { kind: "image", mime: finalMime };
   }
@@ -288,7 +291,10 @@ function classifyAttachment(att: any): { kind: "pdf" | "image" | "docx" | "csv" 
     return { kind: "docx", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
   }
   if (type === "text/csv" || type === "application/csv" || ext === "csv") return { kind: "csv", mime: "text/csv" };
-  if (type.startsWith("audio/")) return { kind: "audio", mime: type };
+  if (type.startsWith("audio/") || AUDIO_EXTS.has(ext)) {
+    const finalMime = type.startsWith("audio/") ? type : `audio/${ext === "oga" ? "ogg" : ext}`;
+    return { kind: "audio", mime: finalMime };
+  }
   return { kind: "other", mime: type || "application/octet-stream" };
 }
 
@@ -313,9 +319,16 @@ async function fetchAttachmentBytes(url: string): Promise<{ bytes: Uint8Array; s
   }
 }
 
-async function processInboundAttachments(rawPayloads: any[]): Promise<{ parts: any[]; trace: any[] }> {
+const TRANSCRIPT_MARKER_RE = /🎤\s*\*?\s*transcri/i;
+
+function hasInlineTranscript(text: string): boolean {
+  return TRANSCRIPT_MARKER_RE.test(String(text || ""));
+}
+
+async function processInboundAttachments(rawPayloads: any[], combinedText: string): Promise<{ parts: any[]; trace: any[] }> {
   const parts: any[] = [];
   const trace: any[] = [];
+  const transcriptInBody = hasInlineTranscript(combinedText);
   for (const payload of rawPayloads) {
     const atts = Array.isArray(payload?.attachments) ? payload.attachments : [];
     for (const att of atts) {
@@ -356,8 +369,13 @@ async function processInboundAttachments(rawPayloads: any[]): Promise<{ parts: a
           trace.push({ kind, ok: false, error: err?.message ?? String(err) });
         }
       } else if (kind === "audio") {
-        parts.push({ text: "[anexo de áudio recebido - transcrição não implementada]" });
-        trace.push({ kind, ok: false, reason: "audio_not_supported" });
+        if (transcriptInBody) {
+          parts.push({ text: "[O usuário enviou um áudio. A transcrição automática (sistema whatsapp_homio) já consta na mensagem acima, marcada com 🎤. Use essa transcrição como o conteúdo do áudio — NÃO afirme que não consegue ouvir áudios. Responda diretamente o que o usuário disse.]" });
+          trace.push({ kind, ok: true, reason: "audio_transcript_in_message_text", mime });
+        } else {
+          parts.push({ text: "[O usuário enviou um áudio mas nenhuma transcrição automática foi anexada à mensagem. Peça educadamente para o usuário reenviar o conteúdo em texto, pois você não consegue processar áudios diretamente.]" });
+          trace.push({ kind, ok: true, reason: "audio_no_transcript", mime });
+        }
       } else {
         parts.push({ text: `[anexo recebido: ${mime} - tipo não suportado]` });
         trace.push({ kind, ok: false, mime, reason: "unsupported_kind" });
@@ -543,7 +561,7 @@ async function runBatch(batchId: string) {
         const idList = messageIds.map((id) => `"${id}"`).join(",");
         const inMsgs = await sb(`inbound_messages?message_id=in.(${idList})&select=message_id,raw_payload`);
         const payloads = (inMsgs || []).map((m: any) => m?.raw_payload).filter(Boolean);
-        const result = await processInboundAttachments(payloads);
+        const result = await processInboundAttachments(payloads, texts);
         attachmentExtraParts = result.parts;
         if (result.trace.length > 0) {
           debugSources.push({
