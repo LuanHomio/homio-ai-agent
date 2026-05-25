@@ -581,7 +581,11 @@ async function runBatch(batchId: string) {
     // Carrega agent_actions ativas e gera function_declarations dinamicas
     const supabaseClient = createClient(SB_URL, SB_KEY);
     const agentActions = await loadActiveActions(supabaseClient, first.agent_id);
-    const tools = buildToolsFromActions(agentActions, BASE_DECLARATIONS);
+    // Skip BASE_DECLARATIONS (4 GHL tools) quando o agente ja tem agent_actions configuradas:
+    // 10 tools confunde o flash em multi-turn e dispara empty response pos-functionResponse.
+    const tools = agentActions.length > 0
+      ? buildToolsFromActions(agentActions, [])
+      : buildToolsFromActions(agentActions, BASE_DECLARATIONS);
     const actionCtx: ActionContext = {
       supabaseClient,
       locationId: first.location_id,
@@ -768,7 +772,12 @@ async function runBatch(batchId: string) {
         return s.length > max ? s.substring(0, max) + "...[truncated]" : s;
       } catch { return "[unserializable]"; }
     };
-    const GEMINI_MODEL = "gemini-2.5-flash-lite";
+    // Trocado de "gemini-2.5-flash-lite" pro nao-lite em 2026-05-14.
+    // flash-lite tem bug determinístico em function-calling multi-turn quando
+    // contexto tem PDF inlineData + ~10 tool declarations + KB context: retorna
+    // candidate com `{content:{role:"model"}, finishReason:"STOP"}` SEM parts.
+    // Repro via curl direto na API confirmou: lite 3/3 empty, flash 2/2 funcCall.
+    const GEMINI_MODEL = "gemini-2.5-flash";
     debugSources.push({
       at: nowIso(),
       source: "decision_trace",
@@ -776,9 +785,9 @@ async function runBatch(batchId: string) {
       model: GEMINI_MODEL,
       prompt_preview: preview(prompt, 500),
       tools_count: Array.isArray(tools?.[0]?.function_declarations) ? tools[0].function_declarations.length : 0,
-      max_iters: 3,
+      max_iters: 10,
     });
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 10; i++) {
       const geminiStartedAt = Date.now();
       const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${Deno.env.get("GEMINI_API_KEY")}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -786,11 +795,10 @@ async function runBatch(batchId: string) {
           contents,
           tools,
           systemInstruction: { parts: [{ text: prompt }] },
-          // Fix bug "Desculpe, nao consegui formular uma resposta": gemini-2.5-flash-lite
-          // ativa thinking por default e em chamadas pos-tool consome todo o output budget
-          // em raciocinio interno, retornando part.text vazio com finishReason=STOP.
-          // thinkingBudget=0 desliga o thinking; mvp atual e single-tool por turno (baixo risco).
-          generationConfig: { maxOutputTokens: 2048, temperature: 0.7, thinkingConfig: { thinkingBudget: 0 } },
+          // 2026-05-14: thinkingBudget=0 + maxOutputTokens=8192 + temperature=0.2.
+          // temperature baixa reduz variabilidade no julgamento (mesmo CV+vaga estava dando fit
+          // 4, 8 ou 9 com 0.7).
+          generationConfig: { maxOutputTokens: 8192, temperature: 0.2, thinkingConfig: { thinkingBudget: 0 } },
         })
       });
 
@@ -814,6 +822,7 @@ async function runBatch(batchId: string) {
       const u = gData.usageMetadata ?? {};
       usageTotals.promptTokens += Number(u.promptTokenCount) || 0;
       usageTotals.outputTokens += Number(u.candidatesTokenCount) || 0;
+      const isEmpty = !part?.functionCall && !part?.text;
       debugSources.push({
         at: nowIso(),
         source: "gemini_call",
@@ -826,9 +835,20 @@ async function runBatch(batchId: string) {
           prompt: u.promptTokenCount ?? null,
           candidates: u.candidatesTokenCount ?? null,
           total: u.totalTokenCount ?? null,
+          // Capturado pra validar se thinkingBudget=0 esta surtindo efeito
+          thoughts: u.thoughtsTokenCount ?? null,
         },
         decision: part?.functionCall ? "tool_call" : (part?.text ? "text" : "empty"),
         tool_name: part?.functionCall?.name ?? null,
+        // Dump diagnostico quando candidates=null (parts vazio) pra investigar
+        emptyDiag: isEmpty ? {
+          candidate_keys: candidate ? Object.keys(candidate) : null,
+          parts_len: candidate?.content?.parts?.length ?? null,
+          first_part_keys: part ? Object.keys(part) : null,
+          safetyRatings: candidate?.safetyRatings ?? null,
+          candidates_count: gData?.candidates?.length ?? null,
+          raw_candidate_preview: candidate ? JSON.stringify(candidate).slice(0, 800) : null,
+        } : undefined,
       });
 
         if (part?.functionCall) {
@@ -920,11 +940,47 @@ async function runBatch(batchId: string) {
           }
         }
 
+        // functionResponse.response e o tool result DIRETO (nao wrapped em {content:})
+        // role canonico e "user". Doc: ai.google.dev/gemini-api/docs/function-calling
         contents.push({
-          role: "function",
-          parts: [{ functionResponse: { name: call.name, response: { content: toolResult } } }]
+          role: "user",
+          parts: [{ functionResponse: { name: call.name, response: (toolResult && typeof toolResult === "object" ? toolResult : { result: toolResult }) } }]
         });
 
+        // Nudge: apos cada functionResponse de agent_action, injeta uma mensagem user breve
+        // forcando o modelo a continuar a sequencia. Sem isso o flash decide que ja cumpriu
+        // a missao apos a primeira action e retorna empty response na iter 1.
+        // So aplica quando ha agent_actions nao executadas alem da que acabou de rodar.
+        const isAgentActionCall = agentActions.some((a) => fnNameForAction(a) === call.name);
+        if (isAgentActionCall && agentActions.length > 1) {
+          const remaining = agentActions
+            .filter((a) => fnNameForAction(a) !== call.name)
+            .map((a) => `${fnNameForAction(a)} (${a.name})`)
+            .join(", ");
+          contents.push({
+            role: "user",
+            parts: [{ text: `Continue executando a sequencia de actions. Ainda faltam: ${remaining}. Chame a proxima sem responder texto.` }],
+          });
+          debugSources.push({ at: nowIso(), source: "decision_trace", step: "post_tool_nudge", remaining_count: agentActions.length - 1 });
+        }
+
+        continue;
+      }
+
+      // Pre-tool-call nudge: se na iter 0 (ou 1 imediatamente apos kickoff falho) o modelo
+      // responde text apesar de ter anexo + agent_actions configuradas, forca uma volta extra
+      // injetando nudge user. Sem isso, ~15% dos runs com anexo terminam em texto e nenhuma
+      // action e chamada. Limitado a 1 retry pra nao virar loop infinito.
+      const isTextResponse = !!part?.text && !part?.functionCall;
+      const preToolNudgeAlreadyUsed = (debugSources as any[]).some((s) => s?.step === "pre_tool_nudge");
+      if (isTextResponse && i < 2 && !preToolNudgeAlreadyUsed && agentActions.length > 0 && attachmentExtraParts.length > 0) {
+        contents.push(candidate.content);
+        const list = agentActions.map((a) => `${fnNameForAction(a)} (${a.name})`).join(", ");
+        contents.push({
+          role: "user",
+          parts: [{ text: `O candidato enviou um anexo de curriculo. Voce nao deve responder texto agora. CHAME a action ${fnNameForAction(agentActions[0])} (${agentActions[0].name}) imediatamente, seguida das demais em sequencia (${list}). Se o anexo nao for um CV valido, chame a action de Status Triagem com valor "sem_curriculo" e depois a de stopBot.` }],
+        });
+        debugSources.push({ at: nowIso(), source: "decision_trace", step: "pre_tool_nudge", iter: i, text_preview: preview(part.text, 200) });
         continue;
       }
 
@@ -1016,12 +1072,24 @@ Deno.serve(async (req: Request) => {
     if (!conversationId || !locationId || !contactId) return new Response("Bad Request", { status: 400, headers: corsHeaders });
     const exists = await sb(`inbound_messages?message_id=eq.${messageId}&select=id`);
     if (exists.length) return new Response("Duplicate", { headers: corsHeaders });
-    const convs = await sb(`conversations?conversation_id=eq.${conversationId}&select=agent_enabled`);
+    const convs = await sb(`conversations?conversation_id=eq.${conversationId}&select=agent_enabled,agent_id`);
     if (convs?.[0]?.agent_enabled !== true) return new Response("Disabled", { headers: corsHeaders });
     const locs = await sb(`locations?ghl_location_id=eq.${locationId}&select=id`);
     if (!locs?.[0]?.id) return new Response("Disabled", { headers: corsHeaders });
-    const ags = await sb(`agents?location_id=eq.${locs[0].id}&is_active=eq.true&order=created_at.desc&limit=1`);
-    const ag = ags[0];
+    // Roteamento: prefere conversations.agent_id (set via Custom JS toggle ou toggle-agent-enabled).
+    // Fallback pro "ultimo agent ativo da location" so quando agent_id e null (compat com conversas
+    // antigas que nao passaram pelo toggle). Sem isso, o ultimo agent criado vira agent default da
+    // location, ignorando o que o operador escolheu por conversa.
+    let ag: any = null;
+    const convAgentId = convs?.[0]?.agent_id;
+    if (convAgentId) {
+      const r = await sb(`agents?id=eq.${convAgentId}&is_active=eq.true&select=id&limit=1`);
+      ag = r[0] || null;
+    }
+    if (!ag) {
+      const ags = await sb(`agents?location_id=eq.${locs[0].id}&is_active=eq.true&order=created_at.desc&limit=1`);
+      ag = ags[0] || null;
+    }
     if (!ag?.id) return new Response("Disabled", { headers: corsHeaders });
     const kbRes = await sb(`agent_knowledge_bases?agent_id=eq.${ag.id}&select=knowledge_base_id`);
     const kbIds = kbRes.map((k: any) => k.knowledge_base_id);
