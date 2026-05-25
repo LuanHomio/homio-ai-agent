@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, pageAll } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,22 +9,21 @@ export async function GET(request: NextRequest) {
     const knowledgeBaseId = searchParams.get('knowledge_base_id');
     const agentId = searchParams.get('agent_id');
 
-    let query = supabase
-      .from('kb_sources')
-      .select('id, knowledge_base_id, agent_id, status, metadata, created_at')
-      .eq('source_type', 'document')
-      .order('created_at', { ascending: false });
+    const data = await pageAll<any>((from, to) => {
+      let query = supabase
+        .from('kb_sources')
+        .select('id, knowledge_base_id, agent_id, status, metadata, created_at')
+        .eq('source_type', 'document')
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
-    if (knowledgeBaseId) query = query.eq('knowledge_base_id', knowledgeBaseId);
-    if (agentId) query = query.eq('agent_id', agentId);
+      if (knowledgeBaseId) query = query.eq('knowledge_base_id', knowledgeBaseId);
+      if (agentId) query = query.eq('agent_id', agentId);
 
-    const { data, error } = await query;
-    if (error) {
-      console.error('[kb/documents] list error:', error);
-      return NextResponse.json({ error: 'failed_to_list' }, { status: 500 });
-    }
+      return query;
+    });
 
-    const items = (data ?? []).map((row: any) => ({
+    const items = data.map((row: any) => ({
       id: row.id,
       knowledge_base_id: row.knowledge_base_id,
       agent_id: row.agent_id,

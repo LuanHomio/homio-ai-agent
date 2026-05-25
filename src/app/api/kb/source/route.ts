@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, pageAll } from '@/lib/supabase';
 import { CreateSourceRequest } from '@/lib/types';
 
 export async function POST(request: NextRequest) {
@@ -108,30 +108,25 @@ export async function GET(request: NextRequest) {
     const agentId = searchParams.get('agent_id');
     const knowledgeBaseId = searchParams.get('knowledge_base_id');
 
-    let query = supabase
-      .from('kb_sources')
-      .select(`
-        *,
-        knowledge_base:knowledge_bases(id, name, location:locations(name))
-      `)
-      .order('created_at', { ascending: false });
+    const data = await pageAll<any>((from, to) => {
+      let query = supabase
+        .from('kb_sources')
+        .select(`
+          *,
+          knowledge_base:knowledge_bases(id, name, location:locations(name))
+        `)
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
-    if (knowledgeBaseId) {
-      query = query.eq('knowledge_base_id', knowledgeBaseId);
-    } else if (agentId) {
-      // Fallback para compatibilidade
-      query = query.eq('agent_id', agentId);
-    }
+      if (knowledgeBaseId) {
+        query = query.eq('knowledge_base_id', knowledgeBaseId);
+      } else if (agentId) {
+        // Fallback para compatibilidade
+        query = query.eq('agent_id', agentId);
+      }
 
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Database error:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch sources' },
-        { status: 500 }
-      );
-    }
+      return query;
+    });
 
     return NextResponse.json(data);
   } catch (error) {
@@ -180,19 +175,25 @@ export async function DELETE(request: NextRequest) {
       // Fallback to manual deletion if function doesn't exist
       console.log('Falling back to manual deletion...');
       
-      // Manual deletion of knowledge_items
-      const { data: itemsToDelete } = await supabase
-        .from('knowledge_items')
-        .select('id')
-        .or(`metadata->>'source_id'.eq.${sourceId}`);
-      
-      if (itemsToDelete && itemsToDelete.length > 0) {
-        const itemIds = itemsToDelete.map(item => item.id);
-        const { count } = await supabase
+      // Manual deletion of knowledge_items — pageAll evita perder chunks
+      // de docs grandes (>1000) que ficariam orfaos com a query truncada.
+      const itemsToDelete = await pageAll<{ id: string }>((from, to) =>
+        supabase
           .from('knowledge_items')
-          .delete()
-          .in('id', itemIds);
-        itemsDeleted = count || itemIds.length;
+          .select('id')
+          .or(`metadata->>'source_id'.eq.${sourceId}`)
+          .range(from, to)
+      );
+
+      if (itemsToDelete.length > 0) {
+        const itemIds = itemsToDelete.map(item => item.id);
+        // .in() tambem trunca em 1000 — paginar o delete em lotes
+        const BATCH = 500;
+        for (let i = 0; i < itemIds.length; i += BATCH) {
+          const batch = itemIds.slice(i, i + BATCH);
+          await supabase.from('knowledge_items').delete().in('id', batch);
+        }
+        itemsDeleted = itemIds.length;
       }
 
       // Manual deletion of crawl_jobs

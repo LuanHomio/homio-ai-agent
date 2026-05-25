@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, pageAll } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,36 +7,31 @@ export async function GET(request: NextRequest) {
     const agentId = searchParams.get('agent_id');
     const knowledgeBaseId = searchParams.get('knowledge_base_id');
 
-    let query = supabase
-      .from('knowledge_items')
-      .select(`
-        id,
-        knowledge_base_id,
-        content,
-        metadata,
-        title,
-        created_at,
-        updated_at,
-        knowledge_base:knowledge_bases(id, name, location:locations(name))
-      `)
-      .eq('content_type', 'faq')
-      .order('created_at', { ascending: false });
+    const data = await pageAll<any>((from, to) => {
+      let query = supabase
+        .from('knowledge_items')
+        .select(`
+          id,
+          knowledge_base_id,
+          content,
+          metadata,
+          title,
+          created_at,
+          updated_at,
+          knowledge_base:knowledge_bases(id, name, location:locations(name))
+        `)
+        .eq('content_type', 'faq')
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
-    if (knowledgeBaseId) {
-      query = query.eq('knowledge_base_id', knowledgeBaseId);
-    }
+      if (knowledgeBaseId) {
+        query = query.eq('knowledge_base_id', knowledgeBaseId);
+      }
 
-    const { data, error } = await query;
+      return query;
+    });
 
-    if (error) {
-      console.error('Database error:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch FAQs' },
-        { status: 500 }
-      );
-    }
-
-    const faqs = data?.map(item => ({
+    const faqs = data.map(item => ({
       id: item.id,
       question: item.metadata?.question || item.title || '',
       answer: item.metadata?.answer || item.content || '',
@@ -44,7 +39,7 @@ export async function GET(request: NextRequest) {
       created_at: item.created_at,
       updated_at: item.updated_at,
       knowledge_base: item.knowledge_base
-    })) || [];
+    }));
 
     return NextResponse.json(faqs);
   } catch (error) {
