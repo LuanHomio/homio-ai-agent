@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, pageAll } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,31 +9,24 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const sourceId = searchParams.get('sourceId');
 
-    let query = supabase
-      .from('crawl_jobs')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const data = await pageAll<any>((from, to) => {
+      let query = supabase
+        .from('crawl_jobs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
-    // Filter by status if provided
-    if (status) {
-      const statusList = status.split(',').map(s => s.trim());
-      query = query.in('status', statusList);
-    }
+      if (status) {
+        const statusList = status.split(',').map(s => s.trim());
+        query = query.in('status', statusList);
+      }
 
-    // Filter by source ID if provided
-    if (sourceId) {
-      query = query.eq('source_id', sourceId);
-    }
+      if (sourceId) {
+        query = query.eq('source_id', sourceId);
+      }
 
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Database error:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch jobs' },
-        { status: 500 }
-      );
-    }
+      return query;
+    });
 
     return NextResponse.json(data);
   } catch (error) {

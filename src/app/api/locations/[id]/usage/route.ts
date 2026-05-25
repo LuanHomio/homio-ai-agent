@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, pageAll } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,17 +53,21 @@ export async function GET(_request: NextRequest, { params }: { params: LocationP
     // Serie diaria (todos os dias do periodo atual com agregado de mensagens)
     const periodStartIso = periodStart.toISOString().slice(0, 10);
     const periodEndIso = periodEnd.toISOString().slice(0, 10);
-    const { data: dailyRows } = await supabase
-      .from('agent_usage_daily')
-      .select('date, message_count, prompt_tokens, output_tokens, estimated_cost_brl')
-      .eq('location_id', locationUuid)
-      .gte('date', periodStartIso)
-      .lte('date', periodEndIso)
-      .order('date', { ascending: true });
+    // pageAll: location com N agents × 30 dias passa de 1000 com N>33 (tier Corporativo).
+    const dailyRows = await pageAll<any>((from, to) =>
+      supabase
+        .from('agent_usage_daily')
+        .select('date, message_count, prompt_tokens, output_tokens, estimated_cost_brl')
+        .eq('location_id', locationUuid)
+        .gte('date', periodStartIso)
+        .lte('date', periodEndIso)
+        .order('date', { ascending: true })
+        .range(from, to)
+    );
 
     // Agregar por dia (varios agents podem somar)
     const dailyMap = new Map<string, { date: string; message_count: number; prompt_tokens: number; output_tokens: number; estimated_cost_brl: number }>();
-    for (const row of (dailyRows ?? []) as any[]) {
+    for (const row of dailyRows as any[]) {
       const key = String(row.date);
       const prev = dailyMap.get(key) ?? { date: key, message_count: 0, prompt_tokens: 0, output_tokens: 0, estimated_cost_brl: 0 };
       dailyMap.set(key, {
@@ -87,15 +91,18 @@ export async function GET(_request: NextRequest, { params }: { params: LocationP
     }
 
     // Breakdown por agent (mesmo periodo)
-    const { data: byAgentRows } = await supabase
-      .from('agent_usage_daily')
-      .select('agent_id, message_count, prompt_tokens, output_tokens, estimated_cost_brl')
-      .eq('location_id', locationUuid)
-      .gte('date', periodStartIso)
-      .lte('date', periodEndIso);
+    const byAgentRows = await pageAll<any>((from, to) =>
+      supabase
+        .from('agent_usage_daily')
+        .select('agent_id, message_count, prompt_tokens, output_tokens, estimated_cost_brl')
+        .eq('location_id', locationUuid)
+        .gte('date', periodStartIso)
+        .lte('date', periodEndIso)
+        .range(from, to)
+    );
 
     const byAgentMap = new Map<string, { agent_id: string; message_count: number; prompt_tokens: number; output_tokens: number; estimated_cost_brl: number }>();
-    for (const row of (byAgentRows ?? []) as any[]) {
+    for (const row of byAgentRows as any[]) {
       const key = String(row.agent_id);
       const prev = byAgentMap.get(key) ?? { agent_id: key, message_count: 0, prompt_tokens: 0, output_tokens: 0, estimated_cost_brl: 0 };
       byAgentMap.set(key, {
