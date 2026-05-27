@@ -1,7 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 import { extractText, getDocumentProxy } from "https://esm.sh/unpdf@0.12.1";
-import mammoth from "https://esm.sh/mammoth@1.8.0";
+// Build browser do mammoth: o build Node (default do esm.sh) so aceita {buffer}/{path}
+// e quebra com {arrayBuffer} ("Could not find file in options"). O browser aceita arrayBuffer.
+import mammoth from "https://esm.sh/mammoth@1.8.0/mammoth.browser.js";
 import Papa from "https://esm.sh/papaparse@5.4.1";
 
 const corsHeaders = {
