@@ -983,15 +983,33 @@ async function runBatch(batchId: string) {
         // Post-tool-nudge: agora rastreia "actions ainda nao chamadas" via Set (calledActionNames),
         // nao "actions != essa que rodou". Necessario quando o modelo emitiu so um subset das actions
         // em paralelo, ou quando comportamento ainda for sequential (Gemini nao garante parallel).
+        //
+        // Importante: nao nuga se uma action TERMINADORA ja foi chamada (stopBot ou humanHandOver).
+        // Essas duas sao mutuamente exclusivas entre si e tambem excluem qualquer "remainingAction"
+        // — uma vez disparada, a conversa esta encerrada/transferida e qualquer nudge force o modelo
+        // a chamar a outra terminadora ou responder texto descritivo confuso.
+        const TERMINATOR_TYPES = new Set(["stopBot", "humanHandOver"]);
+        const calledTerminator = agentActions.some(
+          (a) => TERMINATOR_TYPES.has(a.action_type) && calledActionNames.has(fnNameForAction(a))
+        );
         const hadAnyAgentAction = callResults.some(({ call }) => agentActions.some((a) => fnNameForAction(a) === call.name));
-        const remainingActions = agentActions.filter((a) => !calledActionNames.has(fnNameForAction(a)));
-        if (hadAnyAgentAction && remainingActions.length > 0) {
+        const remainingActions = agentActions.filter(
+          (a) => !calledActionNames.has(fnNameForAction(a)) && !TERMINATOR_TYPES.has(a.action_type)
+        );
+        // Conta tambem as TERMINADORAS ainda nao chamadas (pra mensagem do nudge listar opcoes).
+        const remainingTerminators = agentActions.filter(
+          (a) => !calledActionNames.has(fnNameForAction(a)) && TERMINATOR_TYPES.has(a.action_type)
+        );
+        if (hadAnyAgentAction && !calledTerminator && remainingActions.length > 0) {
           const remaining = remainingActions.map((a) => `${fnNameForAction(a)} (${a.name})`).join(", ");
+          const terminatorHint = remainingTerminators.length > 0
+            ? ` Apos terminar, chame UMA (e apenas uma) das actions de encerramento: ${remainingTerminators.map((a) => `${fnNameForAction(a)} (${a.name})`).join(" OU ")}.`
+            : "";
           contents.push({
             role: "user",
-            parts: [{ text: `Continue executando a sequencia de actions. Ainda faltam: ${remaining}. Voce pode chamar varias na MESMA resposta (parallel function calling) ou uma por vez.` }],
+            parts: [{ text: `Continue executando a sequencia de actions. Ainda faltam: ${remaining}. Voce pode chamar varias na MESMA resposta (parallel function calling) ou uma por vez.${terminatorHint}` }],
           });
-          debugSources.push({ at: nowIso(), source: "decision_trace", step: "post_tool_nudge", remaining_count: remainingActions.length, called_count: calledActionNames.size });
+          debugSources.push({ at: nowIso(), source: "decision_trace", step: "post_tool_nudge", remaining_count: remainingActions.length, remaining_terminators: remainingTerminators.length, called_count: calledActionNames.size });
         }
 
         continue;
