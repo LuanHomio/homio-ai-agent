@@ -787,6 +787,10 @@ async function runBatch(batchId: string) {
       tools_count: Array.isArray(tools?.[0]?.function_declarations) ? tools[0].function_declarations.length : 0,
       max_iters: 10,
     });
+    // Tracking de quais agent_actions ja foram chamadas (compartilhado entre iters).
+    // Antes vivia implicito no loop sequential (so 1 action por iter, deduzia pela ordem).
+    // Com parallel function calling, varias podem rodar num turno — precisa Set explicito.
+    const calledActionNames: Set<string> = new Set();
     for (let i = 0; i < 10; i++) {
       const geminiStartedAt = Date.now();
       const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${Deno.env.get("GEMINI_API_KEY")}`, {
@@ -818,11 +822,16 @@ async function runBatch(batchId: string) {
 
       const gData = await gRes.json();
       const candidate = gData.candidates?.[0];
-      const part = candidate?.content?.parts?.[0];
+      const parts: any[] = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [];
+      // Parallel function calling: Gemini pode retornar varias functionCall parts numa unica
+      // resposta. Processar TODAS (nao so parts[0]) reduz iters de ~7 pra ~2 quando agente
+      // tem multiplas agent_actions independentes (caso CV agent: 5 updateContactField + 1 stopBot).
+      const callParts = parts.filter((p) => p?.functionCall);
+      const textPart = parts.find((p) => p?.text && !p?.functionCall);
       const u = gData.usageMetadata ?? {};
       usageTotals.promptTokens += Number(u.promptTokenCount) || 0;
       usageTotals.outputTokens += Number(u.candidatesTokenCount) || 0;
-      const isEmpty = !part?.functionCall && !part?.text;
+      const isEmpty = callParts.length === 0 && !textPart;
       debugSources.push({
         at: nowIso(),
         source: "gemini_call",
@@ -838,95 +847,52 @@ async function runBatch(batchId: string) {
           // Capturado pra validar se thinkingBudget=0 esta surtindo efeito
           thoughts: u.thoughtsTokenCount ?? null,
         },
-        decision: part?.functionCall ? "tool_call" : (part?.text ? "text" : "empty"),
-        tool_name: part?.functionCall?.name ?? null,
+        decision: callParts.length > 0 ? "tool_call" : (textPart ? "text" : "empty"),
+        // Nomes de TODAS as function calls do turno (uma string com csv pra logs antigos
+        // que filtram por tool_name continuarem funcionando, mas array tambem disponivel).
+        tool_name: callParts.length > 0 ? callParts.map((p) => p.functionCall.name).join(",") : null,
+        tool_names: callParts.length > 0 ? callParts.map((p) => p.functionCall.name) : null,
+        parallel_calls: callParts.length,
         // Dump diagnostico quando candidates=null (parts vazio) pra investigar
         emptyDiag: isEmpty ? {
           candidate_keys: candidate ? Object.keys(candidate) : null,
           parts_len: candidate?.content?.parts?.length ?? null,
-          first_part_keys: part ? Object.keys(part) : null,
+          first_part_keys: parts[0] ? Object.keys(parts[0]) : null,
           safetyRatings: candidate?.safetyRatings ?? null,
           candidates_count: gData?.candidates?.length ?? null,
           raw_candidate_preview: candidate ? JSON.stringify(candidate).slice(0, 800) : null,
         } : undefined,
       });
 
-        if (part?.functionCall) {
-        const call = part.functionCall;
+      if (callParts.length > 0) {
+        // Adiciona a resposta do modelo INTEIRA (com todas as functionCall parts) ao history,
+        // como exige o contrato do Gemini pra multi-turn function calling.
         contents.push(candidate.content);
 
-        const callArgs: Record<string, any> = call?.args && typeof call.args === "object" ? call.args : {};
-        let toolResult;
-
-        // 1. Tenta primeiro como agent_action dinamica (function name = action_${actionId})
-        const isAgentAction = agentActions.some((a) => fnNameForAction(a) === call.name);
-        const toolStartedAt = Date.now();
-        if (isAgentAction) {
-          try {
-            const result = await tryExecuteAgentAction(call.name, callArgs, agentActions, actionCtx);
-            toolResult = result ?? { error: "Action not found" };
-            debugSources.push({
-              at: nowIso(),
-              source: "agent_action",
-              name: call.name,
-              ok: !!toolResult?.success,
-              latency_ms: Date.now() - toolStartedAt,
-              args_preview: preview(callArgs, 400),
-              result_preview: preview(toolResult, 400),
-            });
-          } catch (err: any) {
-            toolResult = { error: `Failed to execute agent action: ${err?.message || String(err)}` };
-            debugSources.push({
-              at: nowIso(),
-              source: "agent_action",
-              name: call.name,
-              ok: false,
-              latency_ms: Date.now() - toolStartedAt,
-              error: err?.message || String(err),
-              args_preview: preview(callArgs, 400),
-            });
-          }
-        } else {
-          // 2. Fallback pro TOOL_MAP estatico (4 tools base)
-          const fnSlug = TOOL_MAP[call.name];
-          const autofilled: string[] = [];
-          if (call.name === "ghl_manage_contact") {
-            if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
-            if (!callArgs.contactId) { callArgs.contactId = first.contact_id; autofilled.push("contactId"); }
-          } else if (call.name === "ghl_get_custom_fields") {
-            if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
-          } else if (call.name === "ghl_get_conversation") {
-            if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
-            if (!callArgs.conversationId) { callArgs.conversationId = first.conversation_id; autofilled.push("conversationId"); }
-          } else if (call.name === "ghl_get_contact") {
-            if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
-            if (!callArgs.contactId) { callArgs.contactId = first.contact_id; autofilled.push("contactId"); }
-          }
-          debugSources.push({ at: nowIso(), source: "decision_trace", step: "tool_autofill", tool: call.name, autofilled });
-
-          if (fnSlug) {
+        // Executor de UMA call (extraido pra rodar em paralelo via Promise.all).
+        const executeCall = async (call: any) => {
+          const callArgs: Record<string, any> = call?.args && typeof call.args === "object" ? call.args : {};
+          let toolResult: any;
+          const isAgentAction = agentActions.some((a) => fnNameForAction(a) === call.name);
+          const toolStartedAt = Date.now();
+          if (isAgentAction) {
             try {
-              const fnRes = await fetch(`${SB_URL}/functions/v1/${fnSlug}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SB_KEY}` },
-                body: JSON.stringify(callArgs)
-              });
-              toolResult = await fnRes.json();
+              const result = await tryExecuteAgentAction(call.name, callArgs, agentActions, actionCtx);
+              toolResult = result ?? { error: "Action not found" };
               debugSources.push({
                 at: nowIso(),
-                source: "tool_call",
+                source: "agent_action",
                 name: call.name,
-                ok: fnRes.ok,
-                status: fnRes.status,
+                ok: !!toolResult?.success,
                 latency_ms: Date.now() - toolStartedAt,
                 args_preview: preview(callArgs, 400),
                 result_preview: preview(toolResult, 400),
               });
             } catch (err: any) {
-              toolResult = { error: `Failed to call tool function: ${err?.message || String(err)}` };
+              toolResult = { error: `Failed to execute agent action: ${err?.message || String(err)}` };
               debugSources.push({
                 at: nowIso(),
-                source: "tool_call",
+                source: "agent_action",
                 name: call.name,
                 ok: false,
                 latency_ms: Date.now() - toolStartedAt,
@@ -935,33 +901,115 @@ async function runBatch(batchId: string) {
               });
             }
           } else {
-            toolResult = { error: "Tool not implemented" };
-            debugSources.push({ at: nowIso(), source: "tool_call", name: call.name, ok: false, error: "not_implemented" });
+            // Fallback pro TOOL_MAP estatico (4 tools base)
+            const fnSlug = TOOL_MAP[call.name];
+            const autofilled: string[] = [];
+            if (call.name === "ghl_manage_contact") {
+              if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
+              if (!callArgs.contactId) { callArgs.contactId = first.contact_id; autofilled.push("contactId"); }
+            } else if (call.name === "ghl_get_custom_fields") {
+              if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
+            } else if (call.name === "ghl_get_conversation") {
+              if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
+              if (!callArgs.conversationId) { callArgs.conversationId = first.conversation_id; autofilled.push("conversationId"); }
+            } else if (call.name === "ghl_get_contact") {
+              if (!callArgs.locationId) { callArgs.locationId = first.location_id; autofilled.push("locationId"); }
+              if (!callArgs.contactId) { callArgs.contactId = first.contact_id; autofilled.push("contactId"); }
+            }
+            debugSources.push({ at: nowIso(), source: "decision_trace", step: "tool_autofill", tool: call.name, autofilled });
+
+            if (fnSlug) {
+              try {
+                const fnRes = await fetch(`${SB_URL}/functions/v1/${fnSlug}`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SB_KEY}` },
+                  body: JSON.stringify(callArgs)
+                });
+                toolResult = await fnRes.json();
+                debugSources.push({
+                  at: nowIso(),
+                  source: "tool_call",
+                  name: call.name,
+                  ok: fnRes.ok,
+                  status: fnRes.status,
+                  latency_ms: Date.now() - toolStartedAt,
+                  args_preview: preview(callArgs, 400),
+                  result_preview: preview(toolResult, 400),
+                });
+              } catch (err: any) {
+                toolResult = { error: `Failed to call tool function: ${err?.message || String(err)}` };
+                debugSources.push({
+                  at: nowIso(),
+                  source: "tool_call",
+                  name: call.name,
+                  ok: false,
+                  latency_ms: Date.now() - toolStartedAt,
+                  error: err?.message || String(err),
+                  args_preview: preview(callArgs, 400),
+                });
+              }
+            } else {
+              toolResult = { error: "Tool not implemented" };
+              debugSources.push({ at: nowIso(), source: "tool_call", name: call.name, ok: false, error: "not_implemented" });
+            }
+          }
+          return { call, toolResult };
+        };
+
+        // Promise.all: actions sao independentes (no caso CV agent: 5 updateContactField + stopBot).
+        // stopBot termina a conversa mas Promise.all espera todas, entao gravacoes ainda acontecem.
+        const callResults = await Promise.all(callParts.map((p) => executeCall(p.functionCall)));
+
+        // Marca cada agent_action chamada nesta resposta como ja executada (pra post_nudge abaixo).
+        for (const { call } of callResults) {
+          if (agentActions.some((a) => fnNameForAction(a) === call.name)) {
+            calledActionNames.add(call.name);
           }
         }
 
-        // functionResponse.response e o tool result DIRETO (nao wrapped em {content:})
-        // role canonico e "user". Doc: ai.google.dev/gemini-api/docs/function-calling
+        // UM unico turn de functionResponse com TODAS as parts (Gemini exige 1 functionResponse
+        // por functionCall na mesma ordem, mas todas podem vir num so content message).
+        // Doc: ai.google.dev/gemini-api/docs/function-calling#parallel
         contents.push({
           role: "user",
-          parts: [{ functionResponse: { name: call.name, response: (toolResult && typeof toolResult === "object" ? toolResult : { result: toolResult }) } }]
+          parts: callResults.map(({ call, toolResult }) => ({
+            functionResponse: {
+              name: call.name,
+              response: (toolResult && typeof toolResult === "object" ? toolResult : { result: toolResult }),
+            },
+          })),
         });
 
-        // Nudge: apos cada functionResponse de agent_action, injeta uma mensagem user breve
-        // forcando o modelo a continuar a sequencia. Sem isso o flash decide que ja cumpriu
-        // a missao apos a primeira action e retorna empty response na iter 1.
-        // So aplica quando ha agent_actions nao executadas alem da que acabou de rodar.
-        const isAgentActionCall = agentActions.some((a) => fnNameForAction(a) === call.name);
-        if (isAgentActionCall && agentActions.length > 1) {
-          const remaining = agentActions
-            .filter((a) => fnNameForAction(a) !== call.name)
-            .map((a) => `${fnNameForAction(a)} (${a.name})`)
-            .join(", ");
+        // Post-tool-nudge: agora rastreia "actions ainda nao chamadas" via Set (calledActionNames),
+        // nao "actions != essa que rodou". Necessario quando o modelo emitiu so um subset das actions
+        // em paralelo, ou quando comportamento ainda for sequential (Gemini nao garante parallel).
+        //
+        // Importante: nao nuga se uma action TERMINADORA ja foi chamada (stopBot ou humanHandOver).
+        // Essas duas sao mutuamente exclusivas entre si e tambem excluem qualquer "remainingAction"
+        // — uma vez disparada, a conversa esta encerrada/transferida e qualquer nudge force o modelo
+        // a chamar a outra terminadora ou responder texto descritivo confuso.
+        const TERMINATOR_TYPES = new Set(["stopBot", "humanHandOver"]);
+        const calledTerminator = agentActions.some(
+          (a) => TERMINATOR_TYPES.has(a.action_type) && calledActionNames.has(fnNameForAction(a))
+        );
+        const hadAnyAgentAction = callResults.some(({ call }) => agentActions.some((a) => fnNameForAction(a) === call.name));
+        const remainingActions = agentActions.filter(
+          (a) => !calledActionNames.has(fnNameForAction(a)) && !TERMINATOR_TYPES.has(a.action_type)
+        );
+        // Conta tambem as TERMINADORAS ainda nao chamadas (pra mensagem do nudge listar opcoes).
+        const remainingTerminators = agentActions.filter(
+          (a) => !calledActionNames.has(fnNameForAction(a)) && TERMINATOR_TYPES.has(a.action_type)
+        );
+        if (hadAnyAgentAction && !calledTerminator && remainingActions.length > 0) {
+          const remaining = remainingActions.map((a) => `${fnNameForAction(a)} (${a.name})`).join(", ");
+          const terminatorHint = remainingTerminators.length > 0
+            ? ` Apos terminar, chame UMA (e apenas uma) das actions de encerramento: ${remainingTerminators.map((a) => `${fnNameForAction(a)} (${a.name})`).join(" OU ")}.`
+            : "";
           contents.push({
             role: "user",
-            parts: [{ text: `Continue executando a sequencia de actions. Ainda faltam: ${remaining}. Chame a proxima sem responder texto.` }],
+            parts: [{ text: `Continue executando a sequencia de actions. Ainda faltam: ${remaining}. Voce pode chamar varias na MESMA resposta (parallel function calling) ou uma por vez.${terminatorHint}` }],
           });
-          debugSources.push({ at: nowIso(), source: "decision_trace", step: "post_tool_nudge", remaining_count: agentActions.length - 1 });
+          debugSources.push({ at: nowIso(), source: "decision_trace", step: "post_tool_nudge", remaining_count: remainingActions.length, remaining_terminators: remainingTerminators.length, called_count: calledActionNames.size });
         }
 
         continue;
@@ -971,14 +1019,18 @@ async function runBatch(batchId: string) {
       // responde text apesar de ter anexo + agent_actions configuradas, forca uma volta extra
       // injetando nudge user. Sem isso, ~15% dos runs com anexo terminam em texto e nenhuma
       // action e chamada. Limitado a 1 retry pra nao virar loop infinito.
-      const isTextResponse = !!part?.text && !part?.functionCall;
+      // Importante: so dispara se NENHUMA agent_action foi chamada ainda. Com parallel function
+      // calling, iter 0 pode chamar todas as 6 actions e iter 1 vir text (a resposta final do
+      // stopBot) — nesse caso o text e legitimo, nao queremos refazer o ciclo.
+      const part = textPart ?? parts[0];
+      const isTextResponse = !!textPart;
       const preToolNudgeAlreadyUsed = (debugSources as any[]).some((s) => s?.step === "pre_tool_nudge");
-      if (isTextResponse && i < 2 && !preToolNudgeAlreadyUsed && agentActions.length > 0 && attachmentExtraParts.length > 0) {
+      if (isTextResponse && i < 2 && !preToolNudgeAlreadyUsed && agentActions.length > 0 && attachmentExtraParts.length > 0 && calledActionNames.size === 0) {
         contents.push(candidate.content);
         const list = agentActions.map((a) => `${fnNameForAction(a)} (${a.name})`).join(", ");
         contents.push({
           role: "user",
-          parts: [{ text: `O candidato enviou um anexo de curriculo. Voce nao deve responder texto agora. CHAME a action ${fnNameForAction(agentActions[0])} (${agentActions[0].name}) imediatamente, seguida das demais em sequencia (${list}). Se o anexo nao for um CV valido, chame a action de Status Triagem com valor "sem_curriculo" e depois a de stopBot.` }],
+          parts: [{ text: `O candidato enviou um anexo de curriculo. Voce nao deve responder texto agora. CHAME as actions ${list} imediatamente — voce pode chamar varias na MESMA resposta (parallel function calling). Se o anexo nao for um CV valido, chame a action de Status Triagem com valor "sem_curriculo" e depois a de stopBot.` }],
         });
         debugSources.push({ at: nowIso(), source: "decision_trace", step: "pre_tool_nudge", iter: i, text_preview: preview(part.text, 200) });
         continue;

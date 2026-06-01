@@ -202,8 +202,11 @@ const humanHandOver: ActionHandler = {
     if (Array.isArray(action.config.tags) && action.config.tags.length > 0) {
       updates.tags = action.config.tags;
     }
-    if (action.config.assignedToUserId && !action.config.skipAssignToUser) {
-      updates.assignedTo = action.config.assignedToUserId;
+    // Schema/UI/GHL canonico usam `assignToUserId` (sem "ed"); o nome `assignedToUserId`
+    // do createOpportunity (extensao Homio) e DIFERENTE. Runtime original lia o nome
+    // errado e a designacao nunca era setada — silently broken ate 2026-05-29.
+    if (action.config.assignToUserId && !action.config.skipAssignToUser) {
+      updates.assignedTo = action.config.assignToUserId;
     }
 
     if (Object.keys(updates).length > 0) {
