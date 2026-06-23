@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import CryptoJS from 'crypto-js';
 import { config } from '@/lib/config';
+import { mintSessionToken } from '@/lib/session';
 
 const GHL_SSO_KEY = config.ghl.ssoKey;
 
@@ -27,7 +28,20 @@ export async function POST(request: NextRequest) {
 
     const userData = JSON.parse(plaintext);
 
-    return NextResponse.json(userData);
+    // Mint a signed session bound to this location. This is the only point where
+    // GHL-issued authenticity is proven, so it's where we establish trust. The
+    // browser stores the token and sends it as Authorization: Bearer on API calls.
+    let sessionToken: string | null = null;
+    if (userData?.activeLocation) {
+      sessionToken = mintSessionToken({
+        uid: userData.userId,
+        loc: userData.activeLocation,
+        cid: userData.companyId,
+        role: userData.role,
+      });
+    }
+
+    return NextResponse.json({ ...userData, sessionToken });
   } catch (error) {
     console.error('Error decrypting GHL user data:', error);
     return NextResponse.json(

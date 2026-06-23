@@ -18,6 +18,8 @@ export interface GHLUserData {
     domain: string;
     logoUrl: string;
   };
+  /** Signed session token minted by /api/ghl/decrypt, bound to activeLocation. */
+  sessionToken?: string | null;
 }
 
 /**

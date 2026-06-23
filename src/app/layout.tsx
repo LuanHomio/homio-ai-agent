@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Montserrat } from 'next/font/google'
 import { Toaster } from 'sonner'
+import { SessionProvider } from '@/contexts/session-context'
 import './globals.css'
 
 const montserrat = Montserrat({
@@ -22,7 +23,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className={montserrat.variable}>
       <body className={montserrat.className}>
-        {children}
+        <SessionProvider>{children}</SessionProvider>
         <Toaster
           theme="dark"
           position="bottom-right"
