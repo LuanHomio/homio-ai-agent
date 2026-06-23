@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { requireAgent } from '@/lib/authz';
 import { UpdateAgentRequest } from '@/lib/types';
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const auth = await requireAgent(request, params.id);
-    if (auth instanceof NextResponse) return auth;
-
     const { data: agent, error } = await supabase
       .from('agents')
       .select(`
@@ -37,9 +33,6 @@ const ALLOWED_RESPONSE_MODES = new Set(['responsive', 'suggestive']);
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const auth = await requireAgent(request, params.id);
-    if (auth instanceof NextResponse) return auth;
-
     const body: UpdateAgentRequest = await request.json();
     const {
       name, description, personality, objective, additional_info,
@@ -118,9 +111,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const auth = await requireAgent(request, params.id);
-    if (auth instanceof NextResponse) return auth;
-
     // Check if agent has KB sources or FAQs
     const { data: sources, error: sourcesError } = await supabase
       .from('kb_sources')

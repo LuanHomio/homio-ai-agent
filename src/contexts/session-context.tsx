@@ -107,62 +107,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     runHandshake();
   }, [runHandshake]);
 
-  // Global fetch interceptor: attach the Bearer token to every same-origin
-  // /api/* request automatically, so we don't have to migrate each call site
-  // (missing one would 401 and break the UI). Re-mints + retries once on 401.
-  // Only touches /api/* — Next's RSC/navigation fetches (page routes) pass
-  // through untouched.
-  useEffect(() => {
-    const orig = window.fetch;
-
-    const isApiUrl = (url: string): boolean => {
-      try {
-        const u = new URL(url, window.location.origin);
-        return u.origin === window.location.origin && u.pathname.startsWith('/api/');
-      } catch {
-        return false;
-      }
-    };
-
-    const patched: typeof window.fetch = async (input, init) => {
-      const url =
-        typeof input === 'string'
-          ? input
-          : input instanceof URL
-            ? input.toString()
-            : input.url;
-
-      if (!isApiUrl(url)) return orig(input, init);
-
-      const baseHeaders =
-        init?.headers ?? (input instanceof Request ? input.headers : undefined);
-
-      const withToken = (token: string | null): RequestInit => {
-        const headers = new Headers(baseHeaders);
+  const apiFetch = useCallback(
+    async (input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> => {
+      const withAuth = (token: string | null): RequestInit => {
+        const headers = new Headers(init.headers || {});
         if (token) headers.set('Authorization', `Bearer ${token}`);
         return { ...init, headers };
       };
 
-      let res = await orig(input, withToken(tokenRef.current));
+      let res = await fetch(input, withAuth(tokenRef.current));
+
+      // On 401, re-run the handshake once and retry with a fresh token.
       if (res.status === 401) {
         const fresh = await runHandshake();
-        if (fresh) res = await orig(input, withToken(fresh));
+        if (fresh && fresh !== tokenRef.current) {
+          // runHandshake already stored it; tokenRef is current.
+        }
+        if (tokenRef.current) {
+          res = await fetch(input, withAuth(tokenRef.current));
+        }
       }
       return res;
-    };
-
-    window.fetch = patched;
-    return () => {
-      window.fetch = orig;
-    };
-  }, [runHandshake]);
-
-  // The global interceptor below already attaches the Bearer token and retries
-  // on 401, so apiFetch just delegates to fetch. Kept as an explicit handle for
-  // callers that prefer not to rely on the global patch.
-  const apiFetch = useCallback(
-    (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => fetch(input, init),
-    []
+    },
+    [runHandshake]
   );
 
   return (
