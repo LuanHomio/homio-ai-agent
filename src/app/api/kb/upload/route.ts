@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireKb } from '@/lib/authz';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -66,6 +67,9 @@ export async function POST(request: NextRequest) {
 
     if (!file) return NextResponse.json({ error: 'file is required' }, { status: 400 });
     if (!knowledgeBaseId) return NextResponse.json({ error: 'knowledge_base_id is required' }, { status: 400 });
+
+    const auth = await requireKb(request, knowledgeBaseId);
+    if (auth instanceof NextResponse) return auth;
 
     if (file.size > MAX_SIZE_BYTES) {
       return NextResponse.json({ error: 'file_too_large', max_bytes: MAX_SIZE_BYTES }, { status: 413 });

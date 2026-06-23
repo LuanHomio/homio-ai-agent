@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireKb } from '@/lib/authz';
 import { generateEmbedding } from '@/lib/ai';
 
 export async function POST(request: NextRequest) {
@@ -7,10 +8,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const batchSize = body.batchSize || 50;
     const limit = body.limit || batchSize;
+    const knowledgeBaseId = body.knowledge_base_id || body.knowledgeBaseId;
+
+    if (!knowledgeBaseId) {
+      return NextResponse.json({ error: 'knowledge_base_id is required' }, { status: 400 });
+    }
+    const auth = await requireKb(request, knowledgeBaseId);
+    if (auth instanceof NextResponse) return auth;
 
     const { data: items, error: fetchError } = await supabase
       .from('knowledge_items')
       .select('id, content, content_type, title')
+      .eq('knowledge_base_id', knowledgeBaseId)
       .is('embedding', null)
       .limit(limit);
 
@@ -94,10 +103,18 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '50');
+    const knowledgeBaseId = searchParams.get('knowledge_base_id') || searchParams.get('knowledgeBaseId');
+
+    if (!knowledgeBaseId) {
+      return NextResponse.json({ error: 'knowledge_base_id is required' }, { status: 400 });
+    }
+    const auth = await requireKb(request, knowledgeBaseId);
+    if (auth instanceof NextResponse) return auth;
 
     const { data: items, error, count } = await supabase
       .from('knowledge_items')
       .select('id, content_type, title, url', { count: 'exact' })
+      .eq('knowledge_base_id', knowledgeBaseId)
       .is('embedding', null)
       .limit(limit);
 

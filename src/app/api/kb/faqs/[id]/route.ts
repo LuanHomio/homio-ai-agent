@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireKnowledgeItem } from '@/lib/authz';
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireKnowledgeItem(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const faqId = params.id;
     const body = await request.json();
 
@@ -83,6 +87,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireKnowledgeItem(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const faqId = params.id;
 
     if (!faqId) {

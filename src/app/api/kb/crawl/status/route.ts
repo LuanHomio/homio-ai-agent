@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireKb, requireSource } from '@/lib/authz';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,15 @@ export async function GET(request: NextRequest) {
         { error: 'sourceId or knowledgeBaseId is required' },
         { status: 400 }
       );
+    }
+
+    // Ownership: the source or KB must belong to the session's location.
+    if (sourceId) {
+      const auth = await requireSource(request, sourceId);
+      if (auth instanceof NextResponse) return auth;
+    } else {
+      const auth = await requireKb(request, knowledgeBaseId as string);
+      if (auth instanceof NextResponse) return auth;
     }
 
     let query = supabase

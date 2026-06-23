@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, pageAll } from '@/lib/supabase';
+import { requireKb, requireAgent, requireLocation, sourceIdsForLocation } from '@/lib/authz';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +9,22 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const knowledgeBaseId = searchParams.get('knowledge_base_id');
     const agentId = searchParams.get('agent_id');
+
+    // Scope to the session location: a kb/agent filter must belong to it; an
+    // unfiltered list is restricted to the location's own sources.
+    let scopeIds: string[] | null = null;
+    if (knowledgeBaseId) {
+      const auth = await requireKb(request, knowledgeBaseId);
+      if (auth instanceof NextResponse) return auth;
+    } else if (agentId) {
+      const auth = await requireAgent(request, agentId);
+      if (auth instanceof NextResponse) return auth;
+    } else {
+      const auth = await requireLocation(request);
+      if (auth instanceof NextResponse) return auth;
+      scopeIds = await sourceIdsForLocation(auth.locationUuid);
+      if (scopeIds.length === 0) return NextResponse.json({ items: [] });
+    }
 
     const data = await pageAll<any>((from, to) => {
       let query = supabase
@@ -19,6 +36,7 @@ export async function GET(request: NextRequest) {
 
       if (knowledgeBaseId) query = query.eq('knowledge_base_id', knowledgeBaseId);
       if (agentId) query = query.eq('agent_id', agentId);
+      if (scopeIds) query = query.in('id', scopeIds);
 
       return query;
     });

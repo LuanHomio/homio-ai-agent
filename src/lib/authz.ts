@@ -107,3 +107,136 @@ export async function kbInLocation(kbId: string, locationUuid: string): Promise<
     .maybeSingle();
   return !!data;
 }
+
+/** All knowledge_base ids belonging to a location (for scoping list queries). */
+export async function kbIdsForLocation(locationUuid: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('knowledge_bases')
+    .select('id')
+    .eq('location_id', locationUuid);
+  return (data ?? []).map((r) => r.id as string);
+}
+
+/** All agent ids belonging to a location (for scoping list queries). */
+export async function agentIdsForLocation(locationUuid: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('agents')
+    .select('id')
+    .eq('location_id', locationUuid);
+  return (data ?? []).map((r) => r.id as string);
+}
+
+/**
+ * All kb_source ids belonging to a location — a source belongs if its KB or its
+ * agent does. Used to scope unfiltered list endpoints (sources, documents,
+ * crawl jobs) to the session's location. Returns [] for a location with none.
+ */
+export async function sourceIdsForLocation(locationUuid: string): Promise<string[]> {
+  const [kbIds, agentIds] = await Promise.all([
+    kbIdsForLocation(locationUuid),
+    agentIdsForLocation(locationUuid),
+  ]);
+  const ids = new Set<string>();
+  if (kbIds.length) {
+    const { data } = await supabase
+      .from('kb_sources')
+      .select('id')
+      .in('knowledge_base_id', kbIds);
+    for (const r of data ?? []) ids.add(r.id as string);
+  }
+  if (agentIds.length) {
+    const { data } = await supabase
+      .from('kb_sources')
+      .select('id')
+      .in('agent_id', agentIds);
+    for (const r of data ?? []) ids.add(r.id as string);
+  }
+  return Array.from(ids);
+}
+
+const notFound = (message = 'Not found') =>
+  NextResponse.json({ error: message }, { status: 404 });
+
+/**
+ * Requires a valid session AND ownership of a kb_source. A source belongs to the
+ * location if its knowledge_base (or, for legacy agent-scoped sources, its agent)
+ * belongs to the location. Returns the auth context or a NextResponse.
+ */
+export async function requireSource(
+  request: Request,
+  sourceId: string
+): Promise<LocationAuth | NextResponse> {
+  const auth = await requireLocation(request);
+  if (auth instanceof NextResponse) return auth;
+  const { data } = await supabase
+    .from('kb_sources')
+    .select('knowledge_base_id, agent_id')
+    .eq('id', sourceId)
+    .maybeSingle();
+  if (!data) return notFound();
+  const okKb = data.knowledge_base_id
+    ? await kbInLocation(data.knowledge_base_id as string, auth.locationUuid)
+    : false;
+  const okAgent =
+    !okKb && data.agent_id
+      ? await agentInLocation(data.agent_id as string, auth.locationUuid)
+      : false;
+  if (!okKb && !okAgent) return notFound();
+  return auth;
+}
+
+/**
+ * Requires a valid session AND ownership of a knowledge_item (e.g. a FAQ),
+ * resolved via its knowledge_base_id. Returns the auth context or a NextResponse.
+ */
+export async function requireKnowledgeItem(
+  request: Request,
+  itemId: string
+): Promise<LocationAuth | NextResponse> {
+  const auth = await requireLocation(request);
+  if (auth instanceof NextResponse) return auth;
+  const { data } = await supabase
+    .from('knowledge_items')
+    .select('knowledge_base_id')
+    .eq('id', itemId)
+    .maybeSingle();
+  if (!data?.knowledge_base_id) return notFound();
+  if (!(await kbInLocation(data.knowledge_base_id as string, auth.locationUuid))) {
+    return notFound();
+  }
+  return auth;
+}
+
+/**
+ * Requires a valid session AND ownership of a crawl_job, resolved via its source
+ * -> knowledge_base chain. Returns the auth context or a NextResponse.
+ */
+export async function requireCrawlJob(
+  request: Request,
+  jobId: string
+): Promise<LocationAuth | NextResponse> {
+  const auth = await requireLocation(request);
+  if (auth instanceof NextResponse) return auth;
+  const { data: job } = await supabase
+    .from('crawl_jobs')
+    .select('source_id')
+    .eq('id', jobId)
+    .maybeSingle();
+  if (!job?.source_id) return notFound();
+  // Reuse source ownership via a direct kb lookup off the source.
+  const { data: src } = await supabase
+    .from('kb_sources')
+    .select('knowledge_base_id, agent_id')
+    .eq('id', job.source_id as string)
+    .maybeSingle();
+  if (!src) return notFound();
+  const okKb = src.knowledge_base_id
+    ? await kbInLocation(src.knowledge_base_id as string, auth.locationUuid)
+    : false;
+  const okAgent =
+    !okKb && src.agent_id
+      ? await agentInLocation(src.agent_id as string, auth.locationUuid)
+      : false;
+  if (!okKb && !okAgent) return notFound();
+  return auth;
+}
