@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseTyped } from '@/lib/supabase';
+import { requireAgent } from '@/lib/authz';
 import { validateUpdateAction } from '@/lib/agent-action-schemas';
 import type { ActionType } from '@/lib/types';
 
@@ -14,8 +15,11 @@ async function loadAction(agentId: string, actionId: string) {
     .single();
 }
 
-export async function GET(_request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    const auth = await requireAgent(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const { data, error } = await loadAction(params.id, params.actionId);
 
     if (error) {
@@ -35,6 +39,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
+    const auth = await requireAgent(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const { data: existing, error: loadError } = await loadAction(params.id, params.actionId);
     if (loadError || !existing) {
       return NextResponse.json({ error: 'Action not found' }, { status: 404 });
@@ -73,8 +80,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: RouteParams) {
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
+    const auth = await requireAgent(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const { data: existing, error: loadError } = await loadAction(params.id, params.actionId);
     if (loadError || !existing) {
       return NextResponse.json({ error: 'Action not found' }, { status: 404 });

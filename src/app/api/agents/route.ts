@@ -1,35 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireLocation } from '@/lib/authz';
 import { CreateAgentRequest } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const locationId = searchParams.get('location_id');
+    // Scope strictly to the session's location; ignore any client-supplied id.
+    const auth = await requireLocation(request);
+    if (auth instanceof NextResponse) return auth;
 
-    let query = supabase
+    const query = supabase
       .from('agents')
       .select(`
         *,
         location:locations(id, name, slug)
       `)
+      .eq('location_id', auth.locationUuid)
       .order('created_at', { ascending: false });
-
-    if (locationId) {
-      // First get the location by ghl_location_id to get the internal UUID
-      const { data: location, error: locationError } = await supabase
-        .from('locations')
-        .select('id')
-        .eq('ghl_location_id', locationId)
-        .single();
-
-      if (locationError || !location) {
-        // Location not registered yet — return empty array instead of error
-        return NextResponse.json([]);
-      }
-
-      query = query.eq('location_id', location.id);
-    }
 
     const { data: agents, error } = await query;
 
@@ -47,28 +34,22 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // The agent is always created in the session's location, regardless of any
+    // location_id sent in the body.
+    const auth = await requireLocation(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body: CreateAgentRequest = await request.json();
-    const { location_id, name, description, personality, objective, additional_info, system_prompt, settings = {} } = body;
+    const { name, description, personality, objective, additional_info, system_prompt, settings = {} } = body;
 
-    if (!location_id || !name) {
-      return NextResponse.json({ error: 'Location ID and name are required' }, { status: 400 });
-    }
-
-    // Verify location exists by ghl_location_id
-    const { data: location, error: locationError } = await supabase
-      .from('locations')
-      .select('id')
-      .eq('ghl_location_id', location_id)
-      .single();
-
-    if (locationError || !location) {
-      return NextResponse.json({ error: 'Location not found' }, { status: 404 });
+    if (!name) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
 
     const { data: agent, error } = await supabase
       .from('agents')
       .insert([{
-        location_id: location.id,
+        location_id: auth.locationUuid,
         name,
         description,
         personality,

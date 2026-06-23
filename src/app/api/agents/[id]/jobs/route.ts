@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseTyped } from '@/lib/supabase';
+import { requireAgent } from '@/lib/authz';
 
 const ALLOWED_STATUS = new Set(['pending', 'processing', 'completed', 'error', 'skipped']);
 const ALLOWED_SEARCH_FIELDS = new Set(['message', 'response', 'both']);
@@ -65,6 +66,9 @@ function applyFilters(query: any, f: Filters) {
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireAgent(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const search = searchParams.get('search')?.trim() || null;
