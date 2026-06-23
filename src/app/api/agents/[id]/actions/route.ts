@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseTyped } from '@/lib/supabase';
+import { requireAgent } from '@/lib/authz';
 import { validateCreateAction } from '@/lib/agent-action-schemas';
 import type { Json } from '@/lib/database.types';
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireAgent(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const { data, error } = await supabaseTyped
       .from('agent_actions')
       .select('*')
@@ -26,15 +30,8 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { data: agent, error: agentError } = await supabaseTyped
-      .from('agents')
-      .select('id')
-      .eq('id', params.id)
-      .single();
-
-    if (agentError || !agent) {
-      return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
-    }
+    const auth = await requireAgent(request, params.id);
+    if (auth instanceof NextResponse) return auth;
 
     const body = await request.json();
     const result = validateCreateAction(body);

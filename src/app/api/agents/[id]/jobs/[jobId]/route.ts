@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseTyped } from '@/lib/supabase';
+import { requireAgent } from '@/lib/authz';
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string; jobId: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string; jobId: string } }) {
   try {
+    const auth = await requireAgent(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const { data, error } = await supabaseTyped
       .from('inbound_jobs')
       .select('*')

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireAgent } from '@/lib/authz';
 import { UpdateAgentKnowledgeBasesRequest } from '@/lib/types';
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireAgent(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const { data: agentKnowledgeBases, error } = await supabase
       .from('agent_knowledge_bases')
       .select(`
@@ -33,6 +37,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireAgent(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const body: UpdateAgentKnowledgeBasesRequest = await request.json();
     const { knowledge_base_ids } = body;
 
@@ -40,7 +47,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: 'knowledge_base_ids must be an array' }, { status: 400 });
     }
 
-    // Verify agent exists
+    // Agent ownership already verified by requireAgent; load its location_id to
+    // ensure the referenced KBs belong to the same location.
     const { data: agent, error: agentError } = await supabase
       .from('agents')
       .select('id, location_id')

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireAgent } from '@/lib/authz';
 import { promptToMarkdown } from '@/lib/prompt-formatter';
 
 export async function GET(
@@ -7,6 +8,9 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireAgent(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = new URL(request.url);
     const includeMetadata = searchParams.get('includeMetadata') === 'true';
     const formatLists = searchParams.get('formatLists') !== 'false';
