@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireSource } from '@/lib/authz';
 import { CrawlRequest, CrawlResponse } from '@/lib/types';
 import { crawlWithFirecrawl } from '@/lib/firecrawl';
 import { generateEmbedding } from '@/lib/ai';
@@ -7,7 +8,7 @@ import { generateEmbedding } from '@/lib/ai';
 export async function POST(request: NextRequest) {
   try {
     const body: CrawlRequest = await request.json();
-    
+
     // Validate required fields
     if (!body.sourceId || !body.mode) {
       return NextResponse.json(
@@ -23,6 +24,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const auth = await requireSource(request, body.sourceId);
+    if (auth instanceof NextResponse) return auth;
 
     // Get source details with agent_id
     const { data: source, error: sourceError } = await supabase

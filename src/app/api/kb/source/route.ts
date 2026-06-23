@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, pageAll } from '@/lib/supabase';
+import { requireKb, requireAgent, requireLocation, requireSource, sourceIdsForLocation } from '@/lib/authz';
 import { CreateSourceRequest } from '@/lib/types';
 
 export async function POST(request: NextRequest) {
@@ -39,6 +40,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const auth = await requireKb(request, body.knowledge_base_id);
+    if (auth instanceof NextResponse) return auth;
 
     // Verify knowledge base exists
     const { data: kb, error: kbError } = await supabase
@@ -108,6 +112,21 @@ export async function GET(request: NextRequest) {
     const agentId = searchParams.get('agent_id');
     const knowledgeBaseId = searchParams.get('knowledge_base_id');
 
+    // Scope to the session location.
+    let scopeIds: string[] | null = null;
+    if (knowledgeBaseId) {
+      const auth = await requireKb(request, knowledgeBaseId);
+      if (auth instanceof NextResponse) return auth;
+    } else if (agentId) {
+      const auth = await requireAgent(request, agentId);
+      if (auth instanceof NextResponse) return auth;
+    } else {
+      const auth = await requireLocation(request);
+      if (auth instanceof NextResponse) return auth;
+      scopeIds = await sourceIdsForLocation(auth.locationUuid);
+      if (scopeIds.length === 0) return NextResponse.json([]);
+    }
+
     const data = await pageAll<any>((from, to) => {
       let query = supabase
         .from('kb_sources')
@@ -123,6 +142,8 @@ export async function GET(request: NextRequest) {
       } else if (agentId) {
         // Fallback para compatibilidade
         query = query.eq('agent_id', agentId);
+      } else if (scopeIds) {
+        query = query.in('id', scopeIds);
       }
 
       return query;
@@ -149,6 +170,9 @@ export async function DELETE(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const auth = await requireSource(request, sourceId);
+    if (auth instanceof NextResponse) return auth;
 
     const { data: source, error: fetchError } = await supabase
       .from('kb_sources')

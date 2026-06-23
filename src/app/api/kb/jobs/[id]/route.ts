@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireCrawlJob } from '@/lib/authz';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireCrawlJob(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const jobId = params.id;
 
     if (!jobId) {

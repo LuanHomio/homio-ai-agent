@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, pageAll } from '@/lib/supabase';
+import { requireKb, requireLocation, kbIdsForLocation } from '@/lib/authz';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const agentId = searchParams.get('agent_id');
     const knowledgeBaseId = searchParams.get('knowledge_base_id');
+
+    // Scope to the session location: a specific KB must belong to it; an
+    // unfiltered list is restricted to the location's own KBs.
+    let scopeKbIds: string[] | null = null;
+    if (knowledgeBaseId) {
+      const auth = await requireKb(request, knowledgeBaseId);
+      if (auth instanceof NextResponse) return auth;
+    } else {
+      const auth = await requireLocation(request);
+      if (auth instanceof NextResponse) return auth;
+      scopeKbIds = await kbIdsForLocation(auth.locationUuid);
+      if (scopeKbIds.length === 0) return NextResponse.json([]);
+    }
 
     const data = await pageAll<any>((from, to) => {
       let query = supabase
@@ -26,6 +39,8 @@ export async function GET(request: NextRequest) {
 
       if (knowledgeBaseId) {
         query = query.eq('knowledge_base_id', knowledgeBaseId);
+      } else if (scopeKbIds) {
+        query = query.in('knowledge_base_id', scopeKbIds);
       }
 
       return query;
@@ -54,7 +69,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    
+
     // Validate required fields
     if (!body.question || !body.answer || !body.knowledge_base_id) {
       return NextResponse.json(
@@ -62,6 +77,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const auth = await requireKb(request, body.knowledge_base_id);
+    if (auth instanceof NextResponse) return auth;
 
     // Verify knowledge base exists and get agent_id
     const { data: kb, error: kbError } = await supabase

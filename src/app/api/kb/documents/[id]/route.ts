@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireSource } from '@/lib/authz';
 
 export const dynamic = 'force-dynamic';
 
 const BUCKET = 'kb-documents';
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireSource(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const { data, error } = await supabase
       .from('kb_sources')
       .select('id, knowledge_base_id, agent_id, status, metadata, created_at')
@@ -25,8 +29,11 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireSource(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const { data: source, error: srcErr } = await supabase
       .from('kb_sources')
       .select('id, metadata')
