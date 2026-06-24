@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ghlGet } from '@/lib/ghl-proxy';
+import { requireLocation } from '@/lib/authz';
 
 type GhlPipeline = {
   id: string;
@@ -21,10 +22,9 @@ async function fetchPipelines(locationId: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const locationId = request.nextUrl.searchParams.get('locationId');
-  if (!locationId) {
-    return NextResponse.json({ error: 'Missing locationId' }, { status: 400 });
-  }
+  const auth = await requireLocation(request);
+  if (auth instanceof NextResponse) return auth;
+  const locationId = auth.ghlLocationId;
 
   const result = await fetchPipelines(locationId);
   if (!result.ok) {

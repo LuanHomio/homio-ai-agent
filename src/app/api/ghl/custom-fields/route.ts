@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ghlGet } from '@/lib/ghl-proxy';
+import { requireLocation } from '@/lib/authz';
 
 export async function GET(request: NextRequest) {
-  const locationId = request.nextUrl.searchParams.get('locationId');
+  const auth = await requireLocation(request);
+  if (auth instanceof NextResponse) return auth;
+  const locationId = auth.ghlLocationId;
   const model = request.nextUrl.searchParams.get('model') || 'contact';
-  if (!locationId) {
-    return NextResponse.json({ error: 'Missing locationId' }, { status: 400 });
-  }
 
   const result = await ghlGet<{
     customFields?: Array<{ id: string; name: string; fieldKey?: string; dataType?: string }>;

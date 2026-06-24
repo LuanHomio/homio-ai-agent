@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireLocation } from '@/lib/authz';
 
 /**
  * Lista agents do Homio AI Agent na mesma subconta (location), normalizado
@@ -9,26 +10,17 @@ import { supabase } from '@/lib/supabase';
  * ({ items: [{ id, label, sublabel }] }).
  */
 export async function GET(request: NextRequest) {
-  const ghlLocationId = request.nextUrl.searchParams.get('locationId');
+  const auth = await requireLocation(request);
+  if (auth instanceof NextResponse) {
+    if (auth.status === 403) return NextResponse.json({ items: [] }); // unregistered → none
+    return auth;
+  }
   const exclude = request.nextUrl.searchParams.get('exclude');
-  if (!ghlLocationId) {
-    return NextResponse.json({ error: 'Missing locationId' }, { status: 400 });
-  }
-
-  const { data: location } = await supabase
-    .from('locations')
-    .select('id')
-    .eq('ghl_location_id', ghlLocationId)
-    .maybeSingle();
-
-  if (!location) {
-    return NextResponse.json({ items: [] });
-  }
 
   let query = supabase
     .from('agents')
     .select('id, name, description, is_active')
-    .eq('location_id', location.id)
+    .eq('location_id', auth.locationUuid)
     .order('name', { ascending: true });
 
   if (exclude) query = query.neq('id', exclude);

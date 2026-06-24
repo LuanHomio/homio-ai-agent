@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { UpdateKnowledgeBaseRequest } from '@/lib/types';
+import { requireKb } from '@/lib/authz';
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireKb(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const { data: knowledgeBase, error } = await supabase
       .from('knowledge_bases')
       .select(`
@@ -30,6 +34,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireKb(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const body: UpdateKnowledgeBaseRequest = await request.json();
     const { name, description, type, settings, is_active } = body;
 
@@ -71,6 +78,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireKb(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     // Check if knowledge base has agent associations
     const { data: agentAssociations, error: associationsError } = await supabase
       .from('agent_knowledge_bases')

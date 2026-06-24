@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireGhlLocationMatch } from '@/lib/authz';
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    // params.id is the GHL location id. Bootstrap endpoint (auto-creates on first
+    // SSO load), so it can't require prior registration — but it MUST be the
+    // caller's own location (no reading/creating another tenant's by id).
+    const auth = requireGhlLocationMatch(request, params.id);
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = new URL(request.url);
     const autoCreate = searchParams.get('auto_create') === 'true';
     const userName = searchParams.get('user_name');
