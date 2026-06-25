@@ -1,37 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { CreateKnowledgeBaseRequest } from '@/lib/types';
+import { requireLocation } from '@/lib/authz';
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const locationId = searchParams.get('location_id');
+    // Always scope to the caller's own location, derived from the signed session
+    // (the client-supplied location_id was trusted blindly before).
+    const auth = await requireLocation(request);
+    if (auth instanceof NextResponse) {
+      if (auth.status === 403) return NextResponse.json([]); // unregistered → none yet
+      return auth;
+    }
 
-    let query = supabase
+    const { data: knowledgeBases, error } = await supabase
       .from('knowledge_bases')
       .select(`
         *,
         location:locations(id, name, slug)
       `)
+      .eq('location_id', auth.locationUuid)
       .order('created_at', { ascending: false });
-
-    if (locationId) {
-      // First get the location by ghl_location_id to get the internal UUID
-      const { data: location, error: locationError } = await supabase
-        .from('locations')
-        .select('id')
-        .eq('ghl_location_id', locationId)
-        .single();
-
-      if (locationError || !location) {
-        // Location not registered yet — return empty array instead of error
-        return NextResponse.json([]);
-      }
-
-      query = query.eq('location_id', location.id);
-    }
-
-    const { data: knowledgeBases, error } = await query;
 
     if (error) {
       console.error('Error fetching knowledge bases:', error);
@@ -47,28 +36,22 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireLocation(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body: CreateKnowledgeBaseRequest = await request.json();
-    const { location_id, name, description, type = 'general', settings = {} } = body;
+    const { name, description, type = 'general', settings = {} } = body;
+    // KB is always created under the caller's own location (never a body value).
+    const locationUuid = auth.locationUuid;
 
-    if (!location_id || !name) {
-      return NextResponse.json({ error: 'Location ID and name are required' }, { status: 400 });
-    }
-
-    // Verify location exists by ghl_location_id
-    const { data: location, error: locationError } = await supabase
-      .from('locations')
-      .select('id')
-      .eq('ghl_location_id', location_id)
-      .single();
-
-    if (locationError || !location) {
-      return NextResponse.json({ error: 'Location not found' }, { status: 404 });
+    if (!name) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
 
     const { data: knowledgeBase, error } = await supabase
       .from('knowledge_bases')
       .insert([{
-        location_id: location.id,
+        location_id: locationUuid,
         name,
         description,
         type,

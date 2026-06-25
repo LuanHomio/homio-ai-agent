@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import CryptoJS from 'crypto-js';
 import { config } from '@/lib/config';
 import { mintSessionToken } from '@/lib/session';
+import { ensureLocationRegistered } from '@/lib/authz';
 
 const GHL_SSO_KEY = config.ghl.ssoKey;
 
@@ -39,6 +40,10 @@ export async function POST(request: NextRequest) {
         cid: userData.companyId,
         role: userData.role,
       });
+      // Register the location now, while GHL authenticity is proven, so every
+      // protected route can rely on it existing (no 403 race for a new client).
+      // Idempotent + never throws — must not block the handshake.
+      await ensureLocationRegistered(userData.activeLocation, userData.userName);
     }
 
     return NextResponse.json({ ...userData, sessionToken });

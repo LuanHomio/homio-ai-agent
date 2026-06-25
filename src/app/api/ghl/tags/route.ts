@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ghlGet, ghlPost } from '@/lib/ghl-proxy';
+import { requireLocation } from '@/lib/authz';
 
 export async function GET(request: NextRequest) {
-  const locationId = request.nextUrl.searchParams.get('locationId');
-  if (!locationId) {
-    return NextResponse.json({ error: 'Missing locationId' }, { status: 400 });
-  }
+  const auth = await requireLocation(request);
+  if (auth instanceof NextResponse) return auth;
+  const locationId = auth.ghlLocationId;
 
   const result = await ghlGet<{ tags?: Array<{ id: string; name: string }> }>(
     locationId,
@@ -26,12 +26,13 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json().catch(() => ({}));
-  const { locationId, name } = body as { locationId?: string; name?: string };
+  const auth = await requireLocation(request);
+  if (auth instanceof NextResponse) return auth;
+  const locationId = auth.ghlLocationId;
 
-  if (!locationId) {
-    return NextResponse.json({ error: 'Missing locationId' }, { status: 400 });
-  }
+  const body = await request.json().catch(() => ({}));
+  const { name } = body as { name?: string };
+
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return NextResponse.json({ error: 'Missing or invalid name' }, { status: 400 });
   }

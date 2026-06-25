@@ -27,6 +27,64 @@ export function forbidden(message = 'forbidden'): NextResponse {
 }
 
 /**
+ * Lightweight check for bootstrap endpoints that must work BEFORE a location is
+ * registered (e.g. auto-create on first SSO load). Requires a valid session and
+ * that the requested GHL location id matches the session's. Does NOT touch the
+ * DB / require registration. Returns the claims or a NextResponse (401/403).
+ */
+export function requireGhlLocationMatch(
+  request: Request,
+  requestedGhlLocationId: string
+): SessionClaims | NextResponse {
+  const session = getSessionFromRequest(request);
+  if (!session) return unauthorized();
+  if (!requestedGhlLocationId || requestedGhlLocationId !== session.loc) {
+    return forbidden('location_mismatch');
+  }
+  return session;
+}
+
+/**
+ * Idempotently registers a GHL location in our DB. Called at the SSO decrypt
+ * handshake — the one point GHL authenticity is proven — so every protected
+ * route can rely on the location existing (closes the 403 'location_not_registered'
+ * race for a legit first-time client). Never throws: registration failure must
+ * not block session minting.
+ *
+ * NOTE: there is no unique constraint on locations.ghl_location_id (only on slug),
+ * so this is a tolerant check-then-insert keyed on the deterministic slug.
+ */
+export async function ensureLocationRegistered(
+  ghlLocationId: string,
+  name?: string
+): Promise<void> {
+  if (!ghlLocationId) return;
+  try {
+    const { data: existing } = await supabase
+      .from('locations')
+      .select('id')
+      .eq('ghl_location_id', ghlLocationId)
+      .limit(1);
+    if (existing && existing.length > 0) return;
+
+    const slug = `ghl-${ghlLocationId.toLowerCase().slice(0, 20)}`;
+    const { error } = await supabase.from('locations').insert({
+      name: name || `Location ${ghlLocationId.slice(0, 8)}`,
+      slug,
+      ghl_location_id: ghlLocationId,
+      settings: {},
+      is_active: true,
+    });
+    // 23505 = registered concurrently (slug unique). Safe to ignore.
+    if (error && error.code !== '23505') {
+      console.error('[ensureLocationRegistered] insert failed:', error);
+    }
+  } catch (e) {
+    console.error('[ensureLocationRegistered] unexpected:', e);
+  }
+}
+
+/**
  * Requires a valid session and resolves its location UUID. Returns either the
  * resolved auth context or a NextResponse to return immediately (401/403).
  *

@@ -1,20 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { CreateLocationRequest, UpdateLocationRequest } from '@/lib/types';
+import { requireLocation, unauthorized } from '@/lib/authz';
+import { getSessionFromRequest } from '@/lib/session';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const { data: locations, error } = await supabase
+    // Scope to the caller's own location — this endpoint used to leak EVERY
+    // tenant's locations. Returns an array (shape preserved) with just theirs.
+    const auth = await requireLocation(request);
+    if (auth instanceof NextResponse) {
+      // Authenticated but unregistered → no locations yet, not an error.
+      if (auth.status === 403) return NextResponse.json([]);
+      return auth;
+    }
+
+    const { data: location, error } = await supabase
       .from('locations')
       .select('*')
-      .order('created_at', { ascending: false });
+      .eq('id', auth.locationUuid)
+      .maybeSingle();
 
     if (error) {
       console.error('Error fetching locations:', error);
       return NextResponse.json({ error: 'Failed to fetch locations' }, { status: 500 });
     }
 
-    return NextResponse.json(locations);
+    return NextResponse.json(location ? [location] : []);
   } catch (error) {
     console.error('Unexpected error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -23,8 +35,14 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = getSessionFromRequest(request);
+    if (!session) return unauthorized();
+
     const body: CreateLocationRequest = await request.json();
-    const { name, description, slug, ghl_location_id, settings = {} } = body;
+    const { name, description, slug, settings = {} } = body;
+    // Never trust a client-supplied ghl_location_id: a location can only be
+    // created for the caller's own session location.
+    const ghl_location_id = session.loc;
 
     if (!name || !slug) {
       return NextResponse.json({ error: 'Name and slug are required' }, { status: 400 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, pageAll } from '@/lib/supabase';
+import { requireLocation } from '@/lib/authz';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,10 +21,17 @@ async function resolveLocationUuid(idParam: string): Promise<string | null> {
   return data.id;
 }
 
-export async function GET(_request: NextRequest, { params }: { params: LocationParam }) {
+export async function GET(request: NextRequest, { params }: { params: LocationParam }) {
   try {
+    const auth = await requireLocation(request);
+    if (auth instanceof NextResponse) return auth;
+
     const locationUuid = await resolveLocationUuid(params.id);
     if (!locationUuid) return NextResponse.json({ error: 'location_not_found' }, { status: 404 });
+    // Ownership: the requested location must be the caller's own.
+    if (locationUuid !== auth.locationUuid) {
+      return NextResponse.json({ error: 'location_not_found' }, { status: 404 });
+    }
 
     const { data: usage, error: usageErr } = await supabase
       .from('location_usage_current_period')
