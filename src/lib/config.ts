@@ -22,6 +22,16 @@ export const config = {
     appAccessToken: process.env.GHL_APP_ACCESS_TOKEN,
     ssoKey: process.env.GHL_SSO_KEY || '1bb0cf82-08cf-4ff7-8f59-2ae5ff7df6d1',
   },
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY!,
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET, // so necessario na EF do webhook (B3)
+  },
+  // Supabase financeiro ("Portal HPN") — so o RPC restrito que resolve
+  // location -> Stripe customer. Usar a anon/publishable key (nao a service).
+  finance: {
+    url: process.env.FINANCE_SUPABASE_URL!,
+    anonKey: process.env.FINANCE_SUPABASE_ANON_KEY!,
+  },
 } as const;
 
 // Validation function
