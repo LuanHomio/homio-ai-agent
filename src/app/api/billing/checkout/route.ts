@@ -174,8 +174,11 @@ export async function POST(request: NextRequest) {
         { price: ids.basePriceId, quantity: 1 },
         { price: ids.overagePriceId }, // metered: sem quantity
       ],
-      success_url: `${appUrl}/agents/${ghlLocationId}?billing=success`,
-      cancel_url: `${appUrl}/agents/${ghlLocationId}?billing=cancel`,
+      // Volta pra home (dashboard da location), nao pra /agents/[id] (edicao de
+      // agent). O Checkout roda em aba nova top-level, entao a home carrega
+      // standalone lendo ?locationId=. O banner billing=success/cancel e tratado la.
+      success_url: `${appUrl}/?locationId=${ghlLocationId}&billing=success`,
+      cancel_url: `${appUrl}/?locationId=${ghlLocationId}&billing=cancel`,
       subscription_data: { metadata },
       metadata,
     });
