@@ -17,7 +17,9 @@ import { EmptyAgentsState } from '@/components/EmptyAgentsState';
 import { AgentCard } from '@/components/AgentCard';
 import { Footer } from '@/components/Footer';
 import { UsageSummary } from '@/components/UsageSummary';
-import { BillingPlans } from '@/components/BillingPlans';
+import { BillingLanding } from '@/components/billing/BillingLanding';
+import { BillingUpsell } from '@/components/billing/BillingUpsell';
+import type { OverviewResponse } from '@/components/billing/types';
 import { getGHLUserData, type GHLUserData } from '@/lib/ghl-user-data';
 
 interface FAQ {
@@ -89,6 +91,8 @@ export default function KnowledgeBasePage() {
   const [ghlLoading, setGhlLoading] = useState(true);
   const [ghlError, setGhlError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('agents');
+  const [billing, setBilling] = useState<OverviewResponse | null>(null);
+  const [billingLoading, setBillingLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [faqs, setFaqs] = useState<FAQ[]>([]);
   const [sources, setSources] = useState<KBSource[]>([]);
@@ -532,6 +536,29 @@ export default function KnowledgeBasePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationId]);
 
+  // Estado de billing (decide o gate: sem sub -> LP cheia; free -> upsell; pago -> nada)
+  useEffect(() => {
+    if (!locationId) return;
+    let cancelled = false;
+    setBillingLoading(true);
+    (async () => {
+      try {
+        const res = await fetch('/api/billing/overview');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json: OverviewResponse = await res.json();
+        if (!cancelled) setBilling(json);
+      } catch (err) {
+        console.warn('Falha ao carregar billing overview:', err);
+        if (!cancelled) setBilling(null);
+      } finally {
+        if (!cancelled) setBillingLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [locationId]);
+
   // Show loading while detecting GHL location
   if (ghlLoading) {
     return (
@@ -566,6 +593,26 @@ export default function KnowledgeBasePage() {
     );
   }
 
+  // Gate de billing: espera o overview pra nao piscar o dashboard antes da LP.
+  if (billingLoading) {
+    return (
+      <div className="min-h-screen bg-background text-foreground dark flex items-center justify-center">
+        <div className="text-center animate-fade-in">
+          <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-homio-purple-500/10 border border-homio-purple-500/20 flex items-center justify-center animate-pulse-glow">
+            <Loader2 className="w-8 h-8 text-homio-purple-400 animate-spin" />
+          </div>
+          <p className="text-muted-foreground font-medium">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Sem assinatura => LP cheia (bloqueia o dashboard). Se o billing falhou de
+  // carregar (billing===null), NAO bloqueia — fail-open pra nao paywall por soluco.
+  if (billing && billing.subscription === null) {
+    return <BillingLanding overview={billing} />;
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground dark">
       {/* Header/Hero Section */}
@@ -588,7 +635,9 @@ export default function KnowledgeBasePage() {
           </div>
         )}
 
-        {locationId && <BillingPlans locationId={locationId} />}
+        {billing?.subscription && !billing.subscription.is_paid && (
+          <BillingUpsell overview={billing} />
+        )}
         {locationId && <UsageSummary locationId={locationId} />}
 
         <div className="mb-12">
