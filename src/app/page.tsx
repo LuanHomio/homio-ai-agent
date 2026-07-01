@@ -17,6 +17,7 @@ import { EmptyAgentsState } from '@/components/EmptyAgentsState';
 import { AgentCard } from '@/components/AgentCard';
 import { Footer } from '@/components/Footer';
 import { UsageSummary } from '@/components/UsageSummary';
+import { BillingPlans } from '@/components/BillingPlans';
 import { getGHLUserData, type GHLUserData } from '@/lib/ghl-user-data';
 
 interface FAQ {
@@ -470,6 +471,23 @@ export default function KnowledgeBasePage() {
     }
   };
 
+  // Feedback pos-checkout: o Stripe Checkout (aba nova) redireciona pra
+  // /?locationId=...&billing=success|cancel. Mostra o aviso e limpa o param.
+  useEffect(() => {
+    const billing = searchParams.get('billing');
+    if (billing === 'success') {
+      showMessage('success', 'Pagamento confirmado! Sua assinatura foi ativada.');
+    } else if (billing === 'cancel') {
+      showMessage('error', 'Checkout cancelado. Nenhuma cobranca foi feita.');
+    }
+    if (billing && typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('billing');
+      window.history.replaceState({}, '', url.toString());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Detect GHL location on mount
   useEffect(() => {
     // If locationId already set via URL param, skip GHL detection
@@ -570,6 +588,7 @@ export default function KnowledgeBasePage() {
           </div>
         )}
 
+        {locationId && <BillingPlans locationId={locationId} />}
         {locationId && <UsageSummary locationId={locationId} />}
 
         <div className="mb-12">
