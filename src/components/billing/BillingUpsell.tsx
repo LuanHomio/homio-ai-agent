@@ -24,14 +24,14 @@ export function BillingUpsell({ overview }: { overview: OverviewResponse }) {
           </div>
           <h3 className="text-xl font-bold text-foreground">Precisa de mais mensagens?</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Voce esta no plano gratuito. Faca upgrade para mais mensagens e menor custo de excedente.
+            Você está no plano gratuito. Faça upgrade para mais mensagens e menor custo de excedente.
           </p>
         </div>
         <button
           onClick={() => setDismissed(true)}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
         >
-          Agora nao
+          Agora não
         </button>
       </div>
 

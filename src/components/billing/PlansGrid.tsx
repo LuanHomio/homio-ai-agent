@@ -5,9 +5,9 @@ import { HIGHLIGHT_SLUG, formatBrl, type Plan } from './types';
 
 // Beneficios curtos por plano (copy de vendas — nao vem do banco).
 const PERKS: Record<string, string[]> = {
-  basico: ['Ideal pra comecar', 'Todos os canais WhatsApp', 'Base de conhecimento'],
-  intermediario: ['Melhor custo por mensagem', 'Analise de curriculos', 'Suporte prioritario'],
-  avancado: ['Alto volume', 'Menor preco de excedente', 'Multiplos agentes'],
+  basico: ['Ideal pra começar', 'Todos os canais da Homio', 'Base de conhecimento'],
+  intermediario: ['Melhor custo por mensagem', 'Documentos, imagens e áudio', 'Suporte prioritário'],
+  avancado: ['Alto volume', 'Menor preço de excedente', 'Múltiplos agentes'],
 };
 
 export function PlansGrid({
@@ -49,10 +49,10 @@ export function PlansGrid({
                 <span className="text-2xl font-bold text-foreground tabular-nums">
                   {formatBrl(plan.monthly_price_brl)}
                 </span>
-                <span className="text-xs text-muted-foreground">/mes</span>
+                <span className="text-xs text-muted-foreground">/mês</span>
               </div>
               <div className="text-xs text-muted-foreground mt-1">
-                {plan.monthly_message_limit.toLocaleString('pt-BR')} mensagens incluidas
+                {plan.monthly_message_limit.toLocaleString('pt-BR')} mensagens incluídas
               </div>
             </div>
 

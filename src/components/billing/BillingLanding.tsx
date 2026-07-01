@@ -17,33 +17,33 @@ import type { OverviewResponse } from './types';
 const FEATURES: { icon: React.ComponentType<{ className?: string }>; title: string; desc: string }[] = [
   {
     icon: MessageCircle,
-    title: 'Atendimento 24/7 no WhatsApp',
-    desc: 'Seu agente responde na hora, a qualquer momento, em todos os canais de WhatsApp da conta — sem depender de alguem online.',
+    title: 'Atende em todos os canais',
+    desc: 'Responde no WhatsApp, Instagram Direct, e-mail, live chat e nos widgets do seu site — qualquer canal conectado na Homio, tudo no mesmo agente.',
   },
   {
     icon: FileText,
-    title: 'Analise de curriculos',
-    desc: 'Le PDF, DOCX e ate foto do curriculo, faz a pre-triagem do candidato e preenche os campos do contato automaticamente.',
+    title: 'Entende documentos, imagens e áudios',
+    desc: 'Lê PDF, Word, planilhas e imagens, e transcreve áudios — interpreta o que o cliente envia e responde com contexto.',
   },
   {
     icon: BookOpen,
-    title: 'Base de conhecimento propria',
-    desc: 'Treine o agente com seus PDFs, planilhas e o site da empresa. As respostas ficam fieis ao seu negocio, sem inventar.',
+    title: 'Base de conhecimento própria',
+    desc: 'Treine o agente com seus PDFs, planilhas e o site da empresa. As respostas ficam fiéis ao seu negócio, sem inventar.',
   },
   {
     icon: Workflow,
-    title: 'Acoes dentro do seu CRM',
-    desc: 'Agenda reunioes, atualiza contatos, cria oportunidades, dispara workflows e transfere pra um humano quando precisa.',
+    title: 'Ações dentro do seu CRM',
+    desc: 'Agenda reuniões, atualiza contatos, cria oportunidades, dispara workflows e transfere pra um humano quando precisa.',
   },
   {
     icon: Activity,
-    title: 'Metricas e historico',
-    desc: 'Acompanhe cada conversa, o custo por mensagem e as decisoes do agente numa timeline clara.',
+    title: 'Métricas e histórico',
+    desc: 'Acompanhe cada conversa, o custo por mensagem e as decisões do agente numa timeline clara.',
   },
   {
     icon: MousePointerClick,
-    title: 'Sem codigo',
-    desc: 'Monte, ajuste o prompt e configure as acoes do agente pela propria interface — sem tocar em nada tecnico.',
+    title: 'Sem código',
+    desc: 'Monte, ajuste o prompt e configure as ações do agente pela própria interface — sem tocar em nada técnico.',
   },
 ];
 
@@ -61,11 +61,12 @@ export function BillingLanding({ overview }: { overview: OverviewResponse }) {
             Homio AI Agent
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-foreground max-w-2xl mx-auto leading-tight">
-            Coloque um agente de IA pra atender seus clientes no WhatsApp
+            Coloque um agente de IA pra atender seus clientes automaticamente
           </h1>
           <p className="text-muted-foreground mt-4 max-w-xl mx-auto leading-relaxed">
-            Atendimento automatico, triagem de leads e analise de curriculos — integrado ao seu
-            CRM. Assine um plano pra ativar seus agentes. Cancele quando quiser.
+            Atendimento automático, qualificação de leads e respostas com base no seu conteúdo —
+            em todos os canais da Homio, integrado ao seu CRM. Assine um plano pra ativar seus
+            agentes. Cancele quando quiser.
           </p>
           <div className="mt-7">
             <a
@@ -86,7 +87,7 @@ export function BillingLanding({ overview }: { overview: OverviewResponse }) {
         <div className="text-center mb-10 animate-slide-up">
           <h2 className="text-2xl font-bold text-foreground">O que o seu agente faz</h2>
           <p className="text-muted-foreground text-sm mt-1">
-            Tudo que voce libera assinando um plano
+            Tudo que você libera assinando um plano
           </p>
         </div>
 
@@ -110,7 +111,7 @@ export function BillingLanding({ overview }: { overview: OverviewResponse }) {
           <div className="text-center mb-8 animate-slide-up">
             <h2 className="text-2xl font-bold text-foreground">Escolha seu plano</h2>
             <p className="text-muted-foreground text-sm mt-1">
-              Todos incluem os recursos acima. A diferenca e o volume de mensagens.
+              Todos incluem os recursos acima. A diferença é o volume de mensagens.
             </p>
           </div>
 

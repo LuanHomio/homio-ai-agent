@@ -24,11 +24,11 @@ export function usePlanCheckout() {
 
       if (!res.ok) {
         if (res.status === 409) {
-          setNotice({ type: 'success', text: 'Voce ja tem uma assinatura ativa.' });
+          setNotice({ type: 'success', text: 'Você já tem uma assinatura ativa.' });
         } else {
           setNotice({
             type: 'error',
-            text: json?.detail || json?.error || 'Nao foi possivel iniciar a assinatura.',
+            text: json?.detail || json?.error || 'Não foi possível iniciar a assinatura.',
           });
         }
         return;
@@ -44,7 +44,7 @@ export function usePlanCheckout() {
         window.open(json.url, '_blank', 'noopener');
         setNotice({
           type: 'success',
-          text: 'Abrimos o checkout em uma nova aba. Conclua o pagamento por la.',
+          text: 'Abrimos o checkout em uma nova aba. Conclua o pagamento por lá.',
         });
         return;
       }
