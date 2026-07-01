@@ -2,18 +2,29 @@ import Stripe from 'stripe';
 
 // Client Stripe server-side. A chave define o modo (test/live) automaticamente:
 // uma sk_test_ opera no sandbox (cobrancas simuladas), sk_live_ cobra de verdade.
-const secretKey = process.env.STRIPE_SECRET_KEY!;
+//
+// Instanciacao LAZY: o construtor do Stripe lanca se `STRIPE_SECRET_KEY` estiver
+// ausente. Instanciar no import quebrava o `next build` (o passo "Collecting page
+// data" importa a rota sem env). `getStripe()` so instancia no primeiro uso em
+// runtime, quando a env ja existe.
+let _stripe: Stripe | null = null;
 
-export const stripe = new Stripe(secretKey, {
-  appInfo: { name: 'homio-ai-agent' },
-});
+export function getStripe(): Stripe {
+  if (!_stripe) {
+    const secretKey = process.env.STRIPE_SECRET_KEY;
+    if (!secretKey) throw new Error('STRIPE_SECRET_KEY ausente');
+    _stripe = new Stripe(secretKey, { appInfo: { name: 'homio-ai-agent' } });
+  }
+  return _stripe;
+}
 
 // Modo derivado da chave. billing_plans guarda os IDs de test em colunas com
 // sufixo `_test` e os de live nas colunas sem sufixo — `planStripeIds` escolhe
 // o conjunto certo conforme este modo. No go-live so trocar a STRIPE_SECRET_KEY.
-export const stripeMode: 'test' | 'live' = secretKey?.startsWith('sk_test')
-  ? 'test'
-  : 'live';
+// Lido em runtime (nao no import) pelo mesmo motivo do client lazy.
+export function getStripeMode(): 'test' | 'live' {
+  return process.env.STRIPE_SECRET_KEY?.startsWith('sk_test') ? 'test' : 'live';
+}
 
 // Event name do Billing Meter compartilhado pelos 3 planos (mesmo nome em test e
 // live). O runtime reporta o excedente via `POST /v1/billing/meter_events` com
@@ -38,7 +49,7 @@ export interface PlanWithStripeIds {
 
 // Resolve os IDs do Stripe de um plano conforme o modo atual da chave.
 export function planStripeIds(plan: PlanWithStripeIds): PlanStripeIds {
-  if (stripeMode === 'test') {
+  if (getStripeMode() === 'test') {
     return {
       productId: plan.stripe_product_id_test,
       basePriceId: plan.stripe_base_price_id_test,
