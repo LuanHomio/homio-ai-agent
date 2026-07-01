@@ -23,7 +23,7 @@ const FEATURES: { icon: React.ComponentType<{ className?: string }>; title: stri
   {
     icon: FileText,
     title: 'Entende documentos, imagens e áudios',
-    desc: 'Lê PDF, Word, planilhas e imagens, e transcreve áudios — interpreta o que o cliente envia e responde com contexto.',
+    desc: 'Lê PDF, Word, planilhas e imagens, e escuta áudios — interpreta o que o cliente envia e responde com contexto.',
   },
   {
     icon: BookOpen,
