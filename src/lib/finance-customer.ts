@@ -9,12 +9,28 @@ import { createClient } from '@supabase/supabase-js';
 // Usamos a publishable/anon key da finance de proposito: ela so consegue chamar
 // esse RPC (RLS bloqueia as tabelas accounts/clients/subscriptions direto).
 // NUNCA usar a service key da finance aqui — daria acesso total ao banco financeiro.
-const financeUrl = process.env.FINANCE_SUPABASE_URL!;
-const financeAnonKey = process.env.FINANCE_SUPABASE_ANON_KEY!;
+//
+// Instanciacao LAZY: `createClient` lanca ("supabaseUrl is required") se a env
+// estiver ausente. Instanciar no import quebrava o `next build` no passo
+// "Collecting page data" (as envs FINANCE_* nao existem em Preview). So instancia
+// no primeiro uso em runtime.
+function buildFinanceClient() {
+  const financeUrl = process.env.FINANCE_SUPABASE_URL;
+  const financeAnonKey = process.env.FINANCE_SUPABASE_ANON_KEY;
+  if (!financeUrl || !financeAnonKey) {
+    throw new Error('FINANCE_SUPABASE_URL/FINANCE_SUPABASE_ANON_KEY ausentes');
+  }
+  return createClient(financeUrl, financeAnonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
 
-const financeClient = createClient(financeUrl, financeAnonKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+let _financeClient: ReturnType<typeof buildFinanceClient> | null = null;
+
+function getFinanceClient() {
+  if (!_financeClient) _financeClient = buildFinanceClient();
+  return _financeClient;
+}
 
 export interface FinanceCustomer {
   stripeCustomerId: string;
@@ -34,7 +50,7 @@ interface RpcRow {
 export async function resolveStripeCustomerByLocation(
   ghlLocationId: string,
 ): Promise<FinanceCustomer | null> {
-  const { data, error } = await financeClient.rpc(
+  const { data, error } = await getFinanceClient().rpc(
     'get_stripe_customer_by_location',
     { p_location: ghlLocationId },
   );

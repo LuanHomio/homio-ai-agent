@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { requireLocation } from '@/lib/authz';
-import { stripe, planStripeIds } from '@/lib/stripe';
+import { getStripe, planStripeIds } from '@/lib/stripe';
 import { resolveStripeCustomerByLocation } from '@/lib/finance-customer';
 import {
   isPublicPlanSlug,
@@ -94,6 +94,8 @@ export async function POST(request: NextRequest) {
       plan_slug: slug,
       plan_id: plan.id,
     };
+
+    const stripe = getStripe();
 
     // Resolve customer existente da Homio (cartao ja salvo no mesmo Stripe).
     const finance = await resolveStripeCustomerByLocation(ghlLocationId);
