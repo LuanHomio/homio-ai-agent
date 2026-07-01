@@ -482,7 +482,7 @@ export default function KnowledgeBasePage() {
     if (billing === 'success') {
       showMessage('success', 'Pagamento confirmado! Sua assinatura foi ativada.');
     } else if (billing === 'cancel') {
-      showMessage('error', 'Checkout cancelado. Nenhuma cobranca foi feita.');
+      showMessage('error', 'Checkout cancelado. Nenhuma cobrança foi feita.');
     }
     if (billing && typeof window !== 'undefined') {
       const url = new URL(window.location.href);
